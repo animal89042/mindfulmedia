@@ -8,7 +8,7 @@ on:
 
 jobs:
   dummy-job:
-    runs-on: unbuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Printing Test
-      run: echo "Dummy workflow to edit later."
+        run: echo "Dummy workflow to edit later."
