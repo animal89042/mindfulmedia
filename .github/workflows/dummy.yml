@@ -1,0 +1,14 @@
+name: Dummy Workflow
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  dummy-job:
+    runs-on: unbuntu-latest
+    steps:
+      - name: Printing Test
+      run: echo "Dummy workflow to edit later."
