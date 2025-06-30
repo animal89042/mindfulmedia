@@ -3,3 +3,5 @@
 
 frontend/node_modules/
 # packages from npm installa and start
+
+backend/node_modules/
