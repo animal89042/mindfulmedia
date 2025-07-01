@@ -1,4 +1,4 @@
-5# MindfulMedia README
+# MindfulMedia README
 
 ## Table of Contents
 1. [About](#about)
