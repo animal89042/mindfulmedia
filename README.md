@@ -1,4 +1,4 @@
-# MindfulMedia README
+5# MindfulMedia README
 
 ## Table of Contents
 1. [About](#about)
@@ -27,7 +27,7 @@ npm -v   # Should print "11.3.0"
 - Navigate to mindfulmedia
 
 ```shell
-cd mindfulmedia
+cd mindfulmedia/frontend
 ```
 - Install dependencies
 
