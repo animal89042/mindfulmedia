@@ -28,6 +28,8 @@ npm -v   # Should print "11.3.0"
 
 ```shell
 cd mindfulmedia/frontend
+# or
+cd mindfulmedia/backend
 ```
 - Install dependencies
 
