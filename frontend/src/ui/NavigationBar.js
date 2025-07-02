@@ -20,7 +20,14 @@ const NavigationBar = () => {
       </div>
       
       <div className="navbar-right">
-        <button className="nav-button sign-in">Sign In</button>
+        <button className="nav-button sign-in">
+          <img
+            src="https://steamcommunity-a.akamaihd.net/public/images/signinthroughsteam/sits_01.png"
+            alt="Sign in through Steam"
+            style={{ height: '32px' }}
+          />
+        </button>
+        {/* <button className="nav-button sign-in">Sign In</button> */}
       </div>
     </nav>
   );
