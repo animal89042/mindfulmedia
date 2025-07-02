@@ -1,4 +1,6 @@
-import React from 'react';
+import React, {useState, useEffect} from 'react';
+import axios from 'axios';
+
 import './App.css';
 import GameCapsule from './ui/GameCapsule';
 import NavigationBar from './ui/NavigationBar';
@@ -11,6 +13,15 @@ import rainbowSixImage from './ui/assets/tom-clancys-rainbow-six-siege-x.jpg';
 import valheimImage from './ui/assets/valheim.jpg';
 
 function App() {
+
+  const [backendMessage, setBackendMessage] = useState('');
+
+  useEffect(() => {
+    axios.get('http://localhost:5000/api/test')
+        .then(response => setBackendMessage(response.data.message))
+        .catch(error => console.error('COULDNT SIEZE THE BACKEND ARGHHHH', error));
+  }, []);
+
   const games = [
     {
       title: "Destiny 2",
@@ -54,7 +65,12 @@ function App() {
     <div className="App">
       <NavigationBar />
       <h1>Game Collection</h1>
-      <title>Mindful Media</title>
+
+      {/* TESTING MESSAGES TO BACKEND API */}
+      <div style={{ marginBottom: '20px', fontStyle: 'italic', color: '#555' }}>
+        Backend says: {backendMessage || 'Feeding the starving port channels...'}
+      </div>
+
       <div className="content">
         <div className="games-container">
           {games.map((game, index) => (
