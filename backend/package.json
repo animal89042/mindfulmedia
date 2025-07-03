@@ -12,6 +12,11 @@
   "type": "commonjs",
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^5.1.0"
+    "dotenv": "^17.0.1",
+    "express": "^5.1.0",
+    "express-session": "^1.18.1",
+    "ngrok": "^5.0.0-beta.2",
+    "passport": "^0.7.0",
+    "passport-steam": "^1.0.18"
   }
 }
