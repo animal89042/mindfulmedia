@@ -8,6 +8,10 @@
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
     "axios": "^1.10.0",
+<<<<<<< HEAD
+=======
+    "express-session": "^1.18.1",
+>>>>>>> ff131c241f2912503abe5376913130c9491084c7
     "passport": "^0.7.0",
     "passport-steam": "^1.0.18",
     "react": "^19.1.0",
