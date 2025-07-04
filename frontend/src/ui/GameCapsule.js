@@ -1,6 +1,26 @@
-import React from 'react';
+import React, { useState } from 'react';
 import './GameCapsule.css';
-import GameImage from './GameImage';
+//import GameImage from './GameImage';
+//import './GameImage.css';
+
+const GameImage = ({ src, alt }) => {
+  const [loaded, setLoaded] = useState(false);
+
+  return (
+    <>
+      {!loaded && (
+        <div className="image-placeholder"></div>
+      )}
+      <img
+        src={src}
+        alt={alt}
+        onLoad={() => setLoaded(true)}
+        style={{ display: loaded ? 'block' : 'none' }}
+        className="game-image-content"
+      />
+    </>
+  );
+};
 
 const GameCapsule = ({ title, imageUrl, category, rating }) => {
   return (
