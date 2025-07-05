@@ -1,8 +1,21 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import './NavigationBar.css';
 
 const NavigationBar = () => {
+  const [theme, setTheme] = useState(
+    () => localStorage.getItem('theme') || 'dark'
+  );
+
+  useEffect(() => {
+    document.body.classList.toggle('light-theme', theme === 'light');
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(curr => (curr === 'dark' ? 'light' : 'dark'));
+  };
+
   return (
     <nav className="navbar">
       <div className="navbar-left">
@@ -21,6 +34,11 @@ const NavigationBar = () => {
       </div>
       
       <div className="navbar-right">
+        {/* Light / Dark toggle */}
+        <button className="nav-button" onClick={toggleTheme}>
+          {theme === 'dark' ? 'Light Mode ☀️' : 'Dark Mode 🌙'}
+        </button>
+
         <button className="nav-button sign-in"
             onClick={() => {
                 window.location.href = 'http://localhost:5000/auth/steam/login';
@@ -32,7 +50,6 @@ const NavigationBar = () => {
             style={{ height: '32px' }}
           />
         </button>
-        {/* <button className="nav-button sign-in">Sign In</button> */}
       </div>
     </nav>
   );
