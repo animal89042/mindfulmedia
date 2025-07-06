@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
 import './GameCapsule.css';
-//import GameImage from './GameImage';
-//import './GameImage.css';
 
 const GameImage = ({ src, alt }) => {
   const [loaded, setLoaded] = useState(false);
