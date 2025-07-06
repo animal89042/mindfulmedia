@@ -15,7 +15,7 @@
 body.light-theme {
   --bg-color: #ffffff;
   --text-color: #121212;
-  --card-bg: #f9f9f9;
+  --card-bg: #eeeded;
   --card-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   --image-placeholder: #e0e0e0;
   --meta-text: #555555;

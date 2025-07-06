@@ -27,14 +27,13 @@
     } }
 
 .game-capsule {
-    background-color: var(--bg-color);
+    background-color: var(--card-bg);
     color: var(--text-color);
     width: 300px;
     /* Increased width to accommodate larger images */
     border-radius: 10px;
     overflow: hidden;
     box-shadow: var(--card-shadow);
-    background: var(--bg-color);
     margin: 20px;
     transition: transform 0.3s ease;
     display: flex;
