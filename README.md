@@ -13,7 +13,7 @@ find more games they want to try. Unlike other generic media trackers, MindfulMe
 
 ## Prerequisits
 - Setup guide: [React Environment Setup](https://www.geeksforgeeks.org/reactjs/reactjs-environment-setup/)
-  - Download [Node.js](https://nodejs.org/en/download/current) (v24.2.0 for consistency)
+  - Download [Node.js](https://nodejs.org/en/download/current) (v24.2.0+ for consistency)
 
 ```shell
 # Verify the Node.js version:
@@ -31,7 +31,7 @@ cd mindfulmedia/frontend
 # or
 cd mindfulmedia/backend
 ```
-- Install dependencies
+- Install dependencies (frontend and backend)
 
 ```shell
 npm install
