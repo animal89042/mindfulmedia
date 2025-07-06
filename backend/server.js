@@ -47,6 +47,9 @@ const STEAM_API_KEY = process.env.STEAM_API_KEY;
         '/auth/steam/return',
         passport.authenticate('steam', { failureRedirect: '/' }),
         (req, res) => {
+            const steamID = req.user?.id;
+            if (!steamID) return res.redirect('/login/error');
+            console.log('SteamID:', steamID);
             res.redirect(`http://localhost:3000/dashboard?steamid=${req.user.id}`);
         }
     );
