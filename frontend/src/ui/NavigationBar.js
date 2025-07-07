@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import Settings from './Settings';
 import './NavigationBar.css';
 
 const NavigationBar = () => {
@@ -12,9 +13,7 @@ const NavigationBar = () => {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  const toggleTheme = () => {
-    setTheme(curr => (curr === 'dark' ? 'light' : 'dark'));
-  };
+  const toggleTheme = () => setTheme(curr => (curr === 'dark' ? 'light' : 'dark'));
 
   return (
     <nav className="navbar">
@@ -23,26 +22,23 @@ const NavigationBar = () => {
         <button className="nav-button">Browse</button>
         <button className="nav-button">Categories</button>
       </div>
-      
+
       <div className="search-bar">
-        <input 
-          type="text" 
-          placeholder="Search games..." 
+        <input
+          type="text"
+          placeholder="Search games..."
           className="search-input"
         />
         <button className="search-button">🔍</button>
       </div>
-      
-      <div className="navbar-right">
-        {/* Light / Dark toggle */}
-        <button className="nav-button" onClick={toggleTheme}>
-          {theme === 'dark' ? 'Light Mode ☀️' : 'Dark Mode 🌙'}
-        </button>
 
-        <button className="nav-button sign-in"
-            onClick={() => {
-                window.location.href = 'http://localhost:5000/auth/steam/login';
-        }}
+      <div className="navbar-right">
+        <Settings theme={theme} toggleTheme={toggleTheme} />
+        <button
+          className="nav-button sign-in"
+          onClick={() => {
+            window.location.href = 'http://localhost:5000/auth/steam/login';
+          }}
         >
           <img
             src="https://steamcommunity-a.akamaihd.net/public/images/signinthroughsteam/sits_01.png"
