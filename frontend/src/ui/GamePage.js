@@ -34,7 +34,7 @@ const GamePage = () => {
     setError(null);
 
     console.log('Entering GamePage Get');
-    axios.get(`/api/game/${id}`)
+    axios.get(`http://localhost:5000/api/game/${id}`)
         .then(response => {
           setGame(response.data);
           setLoading(false);
