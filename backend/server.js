@@ -6,6 +6,7 @@ const cors          = require('cors');
 const session       = require('express-session');
 const passport      = require('passport');
 const SteamStrategy = require('passport-steam').Strategy;
+const { getGameData, getOwnedGames } = require('./SteamAPI');
 
 const PORT = 5000;
 const STEAM_API_KEY = process.env.STEAM_API_KEY;
@@ -50,9 +51,35 @@ const STEAM_API_KEY = process.env.STEAM_API_KEY;
             const steamID = req.user?.id;
             if (!steamID) return res.redirect('/login/error');
             console.log('SteamID:', steamID);
-            res.redirect(`http://localhost:3000/dashboard?steamid=${req.user.id}`);
+            res.redirect(`http://localhost:3000/${req.user.id}`);
         }
     );
+
+    app.get('/api/games/:steamid', async (req, res) => {
+        const steamid = req.params.steamid;
+
+        try {
+            console.log('ENTERING OWNED GAMES ATTEMPT');
+            const games = await getOwnedGames(steamid);
+            res.json(games);
+        }
+        catch (err) {
+            console.error('Error fetching games from Steam:', err.message);
+            res.status(500).json({ err: 'Failed to fetch games from Steam' });
+        }
+    });
+
+    app.get('/api/game/:id', async (req, res) => {
+        try {
+            console.log('Fetching game for id:', req.params.id);
+            const game = await getGameData(req.params.id);
+            if (!game) return res.status(404).json({ error: 'Game not found' });
+            res.json(game);
+        } catch (error) {
+            console.error('Error in /api/game/:id:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    });
 
     app.get('/api/test', (req, res) => {
         res.json({ message: 'Tunnel + Steam OAuth are working!' });
