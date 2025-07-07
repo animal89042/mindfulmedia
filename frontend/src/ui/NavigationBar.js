@@ -13,7 +13,9 @@ const NavigationBar = () => {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  const toggleTheme = () => setTheme(curr => (curr === 'dark' ? 'light' : 'dark'));
+  const toggleTheme = () => {
+    setTheme(curr => (curr === 'dark' ? 'light' : 'dark'));
+  };
 
   return (
     <nav className="navbar">
