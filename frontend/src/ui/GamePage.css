@@ -15,3 +15,77 @@
     border-radius: 10px;
     margin-bottom: 20px;
 }
+
+.journal h2 {
+  margin-top: 30px;
+}
+
+.journal textarea {
+  width: 100%;
+  max-width: 600px;
+  height: 120px;
+  padding: 10px;
+  border: 1px solid var(--nav-border);
+  border-radius: 5px;
+  background-color: var(--search-bg);
+  color: var(--text-color);
+  resize: vertical;
+  font-size: 1rem;
+  margin-bottom: 10px;
+}
+
+.journal button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 5px;
+  background-color: var(--nav-bg);
+  color: var(--text-color);
+  cursor: pointer;
+  margin-bottom: 20px;
+}
+
+.journal .entries {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.journal .entry {
+  border-top: 1px solid var(--nav-border);
+  padding: 10px 0;
+}
+
+.journal .entry-date {
+  font-size: 0.85rem;
+  color: var(--meta-text);
+  margin-bottom: 4px;
+}
+
+.game-page-content {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 40px;
+    margin-top: 20px;
+}
+
+.game-details {
+    max-width: 400px;
+    text-align: left;
+}
+
+.journal {
+    max-width: 400px;
+    text-align: left;
+}
+
+/* stack vertically on narrow screens */
+@media (max-width: 768px) {
+    .game-page-content {
+        flex-direction: column;
+        align-items: center;
+    }
+    .game-details,
+    .journal {
+        max-width: 100%;
+    }
+}
