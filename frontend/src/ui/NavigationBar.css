@@ -32,6 +32,7 @@
 .nav-button:hover {
     background-color: var(--nav-border);
 }
+
 .nav-button.sign-in {
     background-color: transparent;
     color: white;
