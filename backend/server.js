@@ -6,7 +6,7 @@ const cors          = require('cors');
 const session       = require('express-session');
 const passport      = require('passport');
 const SteamStrategy = require('passport-steam').Strategy;
-const { getGameData, getOwnedGames } = require('./SteamAPI');
+const { getGameData, getOwnedGames, getPlayerSummary } = require('./SteamAPI');
 
 const PORT = 5000;
 const STEAM_API_KEY = process.env.STEAM_API_KEY;
@@ -47,12 +47,19 @@ const STEAM_API_KEY = process.env.STEAM_API_KEY;
     app.get(
         '/auth/steam/return',
         passport.authenticate('steam', { failureRedirect: '/' }),
-        (req, res) => {
-            const steamID = req.user?.id;
-            if (!steamID) return res.redirect('/login/error');
-            console.log('SteamID:', steamID);
-            res.redirect(`http://localhost:3000/${req.user.id}`);
+        async (req, res) => {
+        const steamID = req.user?.id;
+        if (!steamID) return res.redirect('/login/error');
+        console.log('SteamID:', steamID);
+            try {
+            // fetch and log the avatar immediately after login
+            const player = await getPlayerSummary(steamID);
+            console.log('Avatar on sign-in:', player.avatar);
+        } catch (err) {
+          console.error('Error fetching player summary:', err);
         }
+          res.redirect(`http://localhost:3000/${steamID}`);
+      }
     );
 
     app.get('/api/games/:steamid', async (req, res) => {
@@ -61,11 +68,11 @@ const STEAM_API_KEY = process.env.STEAM_API_KEY;
         try {
             console.log('ENTERING OWNED GAMES ATTEMPT');
             const games = await getOwnedGames(steamid);
-            res.json(games);
+            return res.json(games);
         }
         catch (err) {
             console.error('Error fetching games from Steam:', err.message);
-            res.status(500).json({ err: 'Failed to fetch games from Steam' });
+            return res.status(500).json({ err: 'Failed to fetch games from Steam' });
         }
     });
 
