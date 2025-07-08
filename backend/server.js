@@ -68,11 +68,11 @@ const STEAM_API_KEY = process.env.STEAM_API_KEY;
         try {
             console.log('ENTERING OWNED GAMES ATTEMPT');
             const games = await getOwnedGames(steamid);
-            return res.json(games);
+            res.json(games);
         }
         catch (err) {
             console.error('Error fetching games from Steam:', err.message);
-            return res.status(500).json({ err: 'Failed to fetch games from Steam' });
+            res.status(500).json({ err: 'Failed to fetch games from Steam' });
         }
     });
 
