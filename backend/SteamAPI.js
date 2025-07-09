@@ -44,4 +44,18 @@ async function getGameData(id) {
     }
 }
 
-module.exports = {getOwnedGames, getGameData};
+// Fetch player summary including avatar
+async function getPlayerSummary(steamID) {
+    try {
+        const response = await axios.get('https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/', {
+            params: { key: STEAM_API_KEY, steamids: steamID }
+        });
+        const players = response.data.response.players;
+        return players && players.length ? players[0] : null;
+    } catch (error) {
+        console.error('Error fetching player summary:', error.message);
+        return null;
+    }
+}
+
+module.exports = {getOwnedGames, getGameData, getPlayerSummary};
