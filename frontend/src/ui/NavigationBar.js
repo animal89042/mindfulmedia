@@ -58,8 +58,8 @@ const NavigationBar = ({ onSearch }) => {
     <nav className="navbar">
       <div className="navbar-left">
         <Link to={homeLink} className="nav-button">Home</Link>
-        <button className="nav-button">Browse</button>
-        <button className="nav-button">Categories</button>
+        <button className="nav-button">Journal</button>
+        <button className="nav-button">Goals</button>
       </div>
 
       <div className="search-bar">
