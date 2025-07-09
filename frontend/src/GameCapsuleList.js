@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import GameCapsule from './ui/GameCapsule'; //formatting for games data
 
-const GameCapsuleList = () => {
+const GameCapsuleList = ({ searchQuery }) => {
     const { steamid } = useParams();
     const [games, setGames] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -27,16 +27,32 @@ const GameCapsuleList = () => {
             });
     }, [steamid]);
 
+    // filter by name if there's a query
+    const filteredGames = searchQuery
+        ? games.filter(game =>
+            game.name.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+        : games;
+    
     if (loading) return <p>Loading games...</p>;
     if (error) return <p>{error}</p>;
-    if (games.length === 0) return <p>No games found for SteamID: {steamid}</p>;
+    if (filteredGames.length === 0) {
+        return (
+            <p>
+                No games found
+                {searchQuery
+                    ? ` matching “${searchQuery}”`
+                    : ` for SteamID: ${steamid}`}
+            </p>
+        );
+    }
 
     return (
         <>
             <h1>Game Collection for {steamid}</h1>
 
             <div className="games-container">
-                {games.map(game => (
+                {filteredGames.map(game => (
                     <Link
                         key={game.appid}
                         to={`/GamePage/${game.appid}`}

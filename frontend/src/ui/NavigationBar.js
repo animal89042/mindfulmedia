@@ -4,11 +4,12 @@ import axios from 'axios';
 import Settings from './Settings';
 import './NavigationBar.css';
 
-const NavigationBar = () => {
+const NavigationBar = ({ onSearch }) => {
   const location = useLocation();
   const [savedSteamID, setSavedSteamID] = useState(() => localStorage.getItem('steamid'));
   const [avatarFound, setAvatarFound] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Persist SteamID from URL
   useEffect(() => {
@@ -66,8 +67,19 @@ const NavigationBar = () => {
           type="text"
           placeholder="Search games..."
           className="search-input"
+          value={searchTerm}
+          onChange={e => {
+            const val = e.target.value;
+            setSearchTerm(val);
+            onSearch(val);              // 🔥 fire on every keypress
+          }}
         />
-        <button className="search-button">🔍</button>
+        <button
+          className="search-button"
+          onClick={() => onSearch(searchTerm)}
+        >
+          🔍
+        </button>
       </div>
 
       <div className="navbar-right">
