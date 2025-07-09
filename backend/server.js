@@ -76,9 +76,30 @@ const STEAM_API_KEY = process.env.STEAM_API_KEY;
         }
     });
 
+    app.get('/api/playersummary/:steamid', async (req, res) => {
+        try {
+        const summary = await getPlayerSummary(req.params.steamid);
+        if (!summary) {
+            // no such user
+            return res
+                .status(404)
+                .json({ error: 'User not found', avatarFound: false });
+        }
+        const avatarFound = Boolean(summary.avatar);
+        // merge the flag into the returned object
+        res.json({ ...summary, avatarFound });
+        
+        } catch (err) {
+        console.error('Error fetching player summary:', err);
+        res
+            .status(500)
+            .json({ error: 'Failed to fetch player summary', avatarFound: false });
+        }
+    });
+    
     app.get('/api/game/:id', async (req, res) => {
         try {
-            console.log('Fetching game for id:', req.params.id);
+            // console.log('Fetching game for id:', req.params.id);
             const game = await getGameData(req.params.id);
             if (!game) return res.status(404).json({ error: 'Game not found' });
             res.json(game);

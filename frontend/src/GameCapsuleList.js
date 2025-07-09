@@ -9,9 +9,9 @@ const GameCapsuleList = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    // Fetch owned games
     useEffect(() => {
         if (!steamid) return;
-
         setLoading(true);
         setError(null);
 
@@ -21,6 +21,7 @@ const GameCapsuleList = () => {
                 setLoading(false);
             })
             .catch(err => {
+                console.error('Failed to fetch games', err);
                 setError('Failed to fetch games');
                 setLoading(false);
             });
@@ -33,6 +34,7 @@ const GameCapsuleList = () => {
     return (
         <>
             <h1>Game Collection for {steamid}</h1>
+
             <div className="games-container">
                 {games.map(game => (
                     <Link
@@ -44,7 +46,6 @@ const GameCapsuleList = () => {
                             title={game.name}
                             imageUrl={`https://cdn.cloudflare.steamstatic.com/steam/apps/${game.appid}/library_600x900.jpg`}
                             category="Owned Game"
-                            //rating data not available from Steam Web API
                         />
                     </Link>
                 ))}
