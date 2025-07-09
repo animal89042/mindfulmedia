@@ -9,6 +9,7 @@ import GameCapsuleList from './GameCapsuleList';  //Import the dynamic list for 
 
 function App() {
   const [backendMessage, setBackendMessage] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     axios.get('http://localhost:5000/api/test')
@@ -19,7 +20,9 @@ function App() {
   return (
       <Router>
         <div className="App">
-          <NavigationBar />
+          {/* pass down the setter so Navbar can publish search terms */}
+          <NavigationBar onSearch={setSearchQuery} />
+        
           <div style={{ marginBottom: '20px', fontStyle: 'italic', color: '#555' }}>
             Backend says: {backendMessage || 'Feeding the starving port channels...'}
           </div>
@@ -29,7 +32,7 @@ function App() {
             <Route path="/GamePage/:id" element={<GamePage />} />
 
             {/* Route for SteamID-specific game list */}
-            <Route path="/:steamid" element={<GameCapsuleList />} />
+            <Route path="/:steamid" element={<GameCapsuleList searchQuery={searchQuery} />} />
 
             {/* Default page */}
             <Route
