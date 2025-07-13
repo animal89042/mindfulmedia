@@ -28,14 +28,16 @@ npm -v   # Should print "11.3.0"
 
 ```shell
 cd mindfulmedia/frontend
-# or
-cd mindfulmedia/backend
-```
-- Install dependencies (frontend and backend)
+# Install dependencies (frontend)
+npm install react@latest react-scripts react-dom@latest react-router-dom@latest
 
-```shell
-npm install
+# and
+
+cd mindfulmedia/backend
+# Install dependencies (backend)
+npm install dotenv express express_session cors session passport passport-steam localtunnel mysql2
 ```
+
 - Launch mindfulmedia
 
 ```shell
