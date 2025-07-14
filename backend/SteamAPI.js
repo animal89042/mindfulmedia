@@ -1,61 +1,81 @@
-const axios = require('axios');
-const STEAM_API_KEY = process.env.STEAM_API_KEY;
+import axios from "axios";
 
-async function getOwnedGames(steamID) {
-    try {
-        const response = await axios.get('https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/', {
-            params: {
-                key: STEAM_API_KEY,
-                steamid: steamID,
-                include_appinfo: true,
-                include_played_free_games: true,
-            },
-        });
-        console.log(response.data.response);
-        return response.data.response.games || [];
-    } catch (error) {
-        console.error('Error fetching owned games:', error.message);
-        throw error;
-    }
+export async function getOwnedGames(steamID) {
+  const key = process.env.STEAM_API_KEY;
+
+  try {
+    const { data } = await axios.get(
+      "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/",
+      {
+        params: {
+          key,
+          steamid: steamID,
+          include_appinfo: false, // we only need appid
+          include_played_free_games: true,
+        },
+      }
+    );
+    console.log("Steam API call (GetOwnedGames):", data);
+
+    // return up to the first 100 raw entries
+    return (data.response?.games || []).slice(0, 100);
+  } catch (err) {
+    console.error("Error fetching owned games:", err.message);
+    throw err;
+  }
 }
 
-async function getGameData(id) {
-    try {
-        const response = await axios.get('https://store.steampowered.com/api/appdetails', {
-            params: { appids: id }
-        });
+export async function getGameData(appid) {
+  try {
+    const { data } = await axios.get(
+      "https://store.steampowered.com/api/appdetails",
+      {
+        params: { appids: appid },
+      }
+    );
+    console.log("Steam API call (GetAppDetails):", data);
 
-        const data = response.data[id];
-        if (!data.success) return null;
+    const game = data[appid];
+    if (!game.success || !game.data) return null;
 
-        const categories = data.data.categories
-            ? data.data.categories.map(c => c.description).join(', ')
-            : 'N/A';
+    const categories = game.data.categories
+      ? game.data.categories.map((c) => c.description).join(", ")
+      : "Uncategorized";
 
-        return {
-            id: id,
-            title: data.data.name,
-            imageUrl: data.data.header_image, // large banner image
-            category: categories
-        };
-    } catch (error) {
-        console.error('Steam API error:', error);
-        return null;
-    }
+    return {
+      appid,
+      title: game.data.name || "Unknown",
+      imageUrl: game.data.header_image || "",
+      category: categories,
+    };
+  } catch (error) {
+    console.error("Steam API error:   AppID:", appid, error);
+    return null;
+  }
 }
 
-// Fetch player summary including avatar
-async function getPlayerSummary(steamID) {
-    try {
-        const response = await axios.get('https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/', {
-            params: { key: STEAM_API_KEY, steamids: steamID }
-        });
-        const players = response.data.response.players;
-        return players && players.length ? players[0] : null;
-    } catch (error) {
-        console.error('Error fetching player summary:', error.message);
-        return null;
-    }
-}
+export async function getPlayerSummary(steamID) {
+  const key = process.env.STEAM_API_KEY;
+  try {
+    const { data } = await axios.get(
+      "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/",
+      {
+        params: {
+          key,
+          steamids: steamID,
+        },
+      }
+    );
+    console.log("Steam API call (GetPlayerSummaries):", data);
+    const players = data.response?.players;
+    if (!players || !players.length) return null;
 
-module.exports = {getOwnedGames, getGameData, getPlayerSummary};
+    // pick the first (and only) player object - will need future handling for multiple
+    const { personaname, avatar, avatarfull, profileurl } = players[0];
+
+    return { personaname, avatar, avatarfull, profileurl };
+  } catch (error) {
+    console.error("Steam API error (getPlayerSummary):", error.message);
+    return null;
+  }
+}

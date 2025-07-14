@@ -1,63 +1,75 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import axios from 'axios';
-import Settings from './Settings';
-import './NavigationBar.css';
+// NavigationBar.js
+import React, { useState, useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
+import axios from "axios";
+import Settings from "./Settings";
+import "./NavigationBar.css";
 
 const NavigationBar = ({ onSearch }) => {
   const location = useLocation();
-  const [savedSteamID, setSavedSteamID] = useState(() => localStorage.getItem('steamid'));
-  const [avatarFound, setAvatarFound] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
 
-  // Persist SteamID from URL
+  // SteamID saved in localStorage
+  const [savedSteamID, setSavedSteamID] = useState(() =>
+    localStorage.getItem("steamid")
+  );
+  const [avatarFound, setAvatarFound] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [displayName, setDisplayName] = useState(""); // ← new
+
+  // Persist SteamID from URL into localStorage
   useEffect(() => {
     const match = location.pathname.match(/^\/(\d{17,})$/);
     if (match) {
       const id = match[1];
-      localStorage.setItem('steamid', id);
+      localStorage.setItem("steamid", id);
       setSavedSteamID(id);
     }
   }, [location.pathname]);
 
-  // Fetch avatar when signed in
+  // Fetch Steam profile summary (avatar + persona name)
   useEffect(() => {
     if (!savedSteamID) return;
 
-    axios.get(`http://localhost:5000/api/playersummary/${savedSteamID}`)
-      .then(res => {
-        const { avatarFound, avatarfull, avatar } = res.data;
-        setAvatarFound(avatarFound);
-        setAvatarUrl(avatarfull || avatar || '');
+    axios
+      .get(`http://localhost:5000/api/playersummary/${savedSteamID}`)
+      .then((res) => {
+        const { avatarFound: af, avatarfull, avatar, personaName } = res.data;
+        setAvatarFound(af);
+        setAvatarUrl(avatarfull || avatar || "");
+        setDisplayName(personaName || ""); // ← set personaName
       })
-      .catch(err => {
-        console.error('Failed to fetch avatar for navigation', err);
+      .catch((err) => {
+        console.error("Failed to fetch player summary:", err);
         setAvatarFound(false);
       });
   }, [savedSteamID]);
 
-  // Determine home link
-  const homeLink = savedSteamID ? `/${savedSteamID}` : '/';
+  // Home link changes if signed in
+  const homeLink = savedSteamID ? `/${savedSteamID}` : "/";
 
-  // Theme toggle
-  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+  // Theme toggle (existing)
+  const [theme, setTheme] = useState(
+    () => localStorage.getItem("theme") || "dark"
+  );
   useEffect(() => {
-    document.body.classList.toggle('light-theme', theme === 'light');
-    localStorage.setItem('theme', theme);
+    document.body.classList.toggle("light-theme", theme === "light");
+    localStorage.setItem("theme", theme);
   }, [theme]);
-  const toggleTheme = () => setTheme(curr => (curr === 'dark' ? 'light' : 'dark'));
+  const toggleTheme = () =>
+    setTheme((curr) => (curr === "dark" ? "light" : "dark"));
 
-  // Placeholder click handler for avatar button
+  // Placeholder for avatar click
   const handleAvatarClick = () => {
-    // TODO: Implement future navigation or dropdown
-    console.log('Avatar button clicked');
+    console.log("Avatar button clicked");
   };
 
   return (
     <nav className="navbar">
       <div className="navbar-left">
-        <Link to={homeLink} className="nav-button">Home</Link>
+        <Link to={homeLink} className="nav-button">
+          Home
+        </Link>
         <button className="nav-button">Journal</button>
         <button className="nav-button">Goals</button>
       </div>
@@ -68,42 +80,38 @@ const NavigationBar = ({ onSearch }) => {
           placeholder="Search games..."
           className="search-input"
           value={searchTerm}
-          onChange={e => {
-            const val = e.target.value;
-            setSearchTerm(val);
-            onSearch(val);              // 🔥 fire on every keypress
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            onSearch(e.target.value);
           }}
         />
-        <button
-          className="search-button"
-          onClick={() => onSearch(searchTerm)}
-        >
+        <button className="search-button" onClick={() => onSearch(searchTerm)}>
           🔍
         </button>
       </div>
 
       <div className="navbar-right">
         <Settings theme={theme} toggleTheme={toggleTheme} />
-        {(savedSteamID && avatarFound && (location.pathname === `/${savedSteamID}`)) || (location.pathname.match(/^\/GamePage(?:\/|$)/)) ? (
-          <button
-            className="avatar-button"
-            onClick={handleAvatarClick}
-          >
-            <img
-              src={avatarUrl}
-              alt="User Avatar"
-              className="avatar-image"
-            />
+
+        {savedSteamID &&
+        avatarFound &&
+        (location.pathname === `/${savedSteamID}` ||
+          !!location.pathname.match(/^\/GamePage(?:\/|$)/)) ? (
+          <button className="avatar-button" onClick={handleAvatarClick}>
+            <img src={avatarUrl} alt="User Avatar" className="avatar-image" />
+            {/* <span className="nav-displayname">{displayName}</span> */}
           </button>
         ) : (
           <button
             className="nav-button sign-in"
-            onClick={() => window.location.href = 'http://localhost:5000/auth/steam/login'}
+            onClick={() =>
+              (window.location.href = "http://localhost:5000/auth/steam/login")
+            }
           >
             <img
               src="https://steamcommunity-a.akamaihd.net/public/images/signinthroughsteam/sits_01.png"
               alt="Sign in through Steam"
-              style={{ height: '32px' }}
+              style={{ height: "32px" }}
             />
           </button>
         )}
