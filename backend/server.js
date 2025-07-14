@@ -243,6 +243,56 @@ async function startServer() {
     res.json({ message: "Tunnel + Steam OAuth are working!" });
   });
 
+  //  ─── Journal: List entries ───────────────────────────────────────────
+  app.get("/api/journals", async (req, res) => {
+    const { appid } = req.query;
+    if (!appid) {
+      return res
+        .status(400)
+        .json({ error: "appid query parameter is required" });
+    }
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const [rows] = await conn.query(
+        "SELECT appid, entry FROM journals WHERE appid = ?",
+        [appid]
+      );
+      res.json(rows);
+      console.log(`Fetched ${rows.length} journal entries for appid ${appid}`);
+    } catch (err) {
+      console.error("Error fetching journal entries:", err);
+      res.status(500).json({ error: "Failed to fetch journal entries" });
+    } finally {
+      if (conn) conn.release();
+    }
+  });
+
+  //  ─── Journal: Create a new entry ────────────────────────────────────
+  app.post("/api/journals", async (req, res) => {
+    const { appid, entry } = req.body;
+    if (!appid || !entry) {
+      return res
+        .status(400)
+        .json({ error: "Both appid and entry are required" });
+    }
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      await conn.query("INSERT INTO journals (appid, entry) VALUES (?, ?)", [
+        appid,
+        entry,
+      ]);
+      // echo back what was saved
+      res.json({ appid, entry });
+    } catch (err) {
+      console.error("Error saving journal entry:", err);
+      res.status(500).json({ error: "Failed to save journal entry" });
+    } finally {
+      if (conn) conn.release();
+    }
+  });
+
   // Start listening
   app.listen(PORT, () => {
     console.log(`Backend listening on http://localhost:${PORT}`);
