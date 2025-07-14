@@ -5,6 +5,7 @@ import express from "express";
 import cors from "cors";
 import session from "express-session";
 import passport from "passport";
+import path from "path";
 import localtunnel from "localtunnel";
 import mysql from "mysql2/promise";
 import { Strategy as SteamStrategy } from "passport-steam";
@@ -41,6 +42,16 @@ const pool = mysql.createPool({
 });
 
 async function startServer() {
+  // Initialize database schema if it doesn't exist
+  await initSchema(
+    {
+      host: DB_HOST,
+      user: DB_USER,
+      password: DB_PASS,
+      multipleStatements: true, // so a single .sql with many CREATEs will run
+    },
+    path.resolve(__dirname, "init.sql")
+  );
   const tunnel = await localtunnel({ port: PORT, subdomain: "mindfulmedia" });
   const TUNNEL_URL = tunnel.url;
   console.log(`Tunnel live at: ${TUNNEL_URL}`);
