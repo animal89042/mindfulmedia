@@ -45,6 +45,7 @@ export async function getOwnedGames(steamID) {
     return gameDetails;
   } catch (err) {
     console.error("Error fetching owened games:", err.message);
+    // console.error("Error fetching owened games:", err.message);
     throw err;
   }
 }
@@ -72,7 +73,8 @@ export async function getGameData(appid) {
       category: categories,
     };
   } catch (error) {
-    console.error("Steam API error:", error);
+    // console.error("Steam API error:");
+    console.error("Steam API error:", error.message);
     return null;
   }
 }
