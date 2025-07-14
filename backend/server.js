@@ -6,7 +6,12 @@ import cors from "cors";
 import session from "express-session";
 import passport from "passport";
 import localtunnel from "localtunnel";
+
+// mySQL
+import fs from "fs";
+import path from "path";
 import mysql from "mysql2/promise";
+
 import { Strategy as SteamStrategy } from "passport-steam";
 import { getGameData, getOwnedGames } from "./SteamAPI.js";
 
@@ -23,6 +28,23 @@ const {
   PORT = 5000,
 } = process.env;
 
+async function initSchema() {
+  // connect _without_ database name
+  const initConn = await mysql.createConnection({
+    host: DB_HOST,
+    user: DB_USER,
+    password: DB_PASS,
+    // allow semi-colon separated statements
+    multipleStatements: true,
+  });
+
+  const ddl = fs.readFileSync(path.resolve(__dirname, "init.sql"), "utf8");
+  await initConn.query(ddl);
+  await initConn.end();
+
+  console.log("init.sql applied (database + tables created if missing)");
+}
+
 const pool = mysql.createPool({
   host: DB_HOST,
   user: DB_USER,
@@ -33,6 +55,8 @@ const pool = mysql.createPool({
 });
 
 async function startServer() {
+  await initSchema();
+
   const tunnel = await localtunnel({ port: PORT, subdomain: "mindfulmedia" });
   const TUNNEL_URL = tunnel.url;
   console.log(`Tunnel live at: ${TUNNEL_URL}`);
@@ -43,7 +67,8 @@ async function startServer() {
     console.log("MySQL pool connected");
     conn.release();
   } catch (err) {
-    console.error("MySQL pool failed:", err);
+    console.error("MySQL pool failed");
+    // console.error("MySQL pool failed:", err);
     process.exit(1);
   }
 
@@ -89,49 +114,99 @@ async function startServer() {
     const steamID = req.params.steamid;
     let conn;
     try {
-      const games = await getOwnedGames(steamID);
+      const owned = await getOwnedGames(steamID);
       conn = await pool.getConnection();
       await conn.beginTransaction();
 
-      // Ensure user row exists
+      // ensure the user exists
       await conn.query(
         `INSERT IGNORE INTO users (steam_id, display_name) VALUES (?, ?)`,
         [steamID, req.user?.displayName || null]
       );
 
-      // Upsert each game and link to user
-      for (const g of games) {
+      for (const g of owned) {
         const appid = g.appid;
-        const title = g.title || "Unknown Title";
-        const imageURL = g.imageUrl || " ";
-        const category = g.category || "Uncategorized";
-
         if (!appid) continue;
-        await conn.query(
-          `INSERT INTO games (appid, title, image_url, category)
-                    VALUES (?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE
-                        title     = VALUES(title),
-                        image_url = VALUES(image_url),
-                        category  = VALUES(category)`,
-          [g.appid, g.title, g.imageUrl, g.category]
-        );
 
+        // 1) See if we already have a “good” title in games
+        // console.log(`Checking game ${appid} in DB...`);
+        const [[existing]] = await conn.query(
+          `SELECT title, image_url, category
+           FROM games
+          WHERE appid = ?`,
+          [appid]
+        );
+        // console.log(
+        //   "Existing game data:    id: ",
+        //   existing.appid,
+        //   ",    title: ",
+        //   existing.title
+        // );
+
+        let gameData;
+        if (existing && existing.title && existing.title !== "Unknown") {
+          // reuse cached row
+          gameData = {
+            appid,
+            title: existing.title,
+            imageUrl: existing.image_url,
+            category: existing.category,
+          };
+        } else if (existing.title == "Unknown") {
+          gameData = await getGameData(appid);
+          if (gameData !== null) {
+            await conn.query(
+              `UPDATE games SET title = ?, image_url = ?, category = ?
+             WHERE appid = ?`,
+              [gameData.title, gameData.imageUrl, gameData.category, appid]
+            );
+          }
+        } else {
+          // need to fetch fresh data
+          gameData = await getGameData(appid);
+          // if (!gameData) {
+          //   // fallback if Steam API fails
+          //   gameData = {
+          //     appid,
+          //     title,
+          //     imageUrl,
+          //     category,
+          //   };
+          // }
+          // upsert into games table
+          await conn.query(
+            `INSERT INTO games (appid, title, image_url, category)
+                   VALUES (?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+              title     = VALUES(title),
+              image_url = VALUES(image_url),
+              category  = VALUES(category)`,
+            [
+              gameData.appid,
+              gameData.title,
+              gameData.imageUrl,
+              gameData.category,
+            ]
+          );
+          console.log(`Inserted game ${gameData.appid} - ${gameData.title}`);
+        }
+
+        // 2) Link user → game (no change)
         await conn.query(
           `INSERT IGNORE INTO user_games (steam_id, appid) VALUES (?, ?)`,
-          [steamID, g.appid]
+          [steamID, appid]
         );
       }
 
       await conn.commit();
       conn.release();
 
-      // Retrieve and return stored games
+      // finally, fetch back all user’s games and return
       const [rows] = await pool.query(
         `SELECT g.appid, g.title, g.image_url AS imageUrl, g.category
-           FROM games g
-           JOIN user_games ug ON ug.appid = g.appid
-          WHERE ug.steam_id = ?`,
+         FROM games g
+         JOIN user_games ug ON ug.appid = g.appid
+         WHERE ug.steam_id = ?`,
         [steamID]
       );
       res.json(rows);
@@ -140,7 +215,7 @@ async function startServer() {
         await conn.rollback().catch(() => {});
         conn.release();
       }
-      console.error("Error fetching games:", err);
+      // console.error("Error fetching games:", err);
       res.status(500).json({ error: "Failed to fetch games" });
     }
   });
@@ -152,7 +227,7 @@ async function startServer() {
       if (!game) return res.status(404).json({ error: "Game not found" });
       res.json(game);
     } catch (err) {
-      console.error("Error in /api/game/:id:", err);
+      console.error("Error in /api/game/:id:", req.params.id);
       res.status(500).json({ error: "Internal server error" });
     }
   });
