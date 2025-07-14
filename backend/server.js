@@ -1,3 +1,4 @@
+// server.js
 import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
@@ -5,18 +6,17 @@ import express from "express";
 import cors from "cors";
 import session from "express-session";
 import passport from "passport";
-import path from "path";
 import localtunnel from "localtunnel";
 import mysql from "mysql2/promise";
 import { Strategy as SteamStrategy } from "passport-steam";
-import { getGameData, getOwnedGames } from "./SteamAPI.js";
+import { getOwnedGames, getGameData, getPlayerSummary } from "./SteamAPI.js";
 import {
   initSchema,
   ensureUser,
   upsertGame,
   linkUserGame,
   getUserGames,
-  getGameRecord,
+  upsertUserProfile,
 } from "./database.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -32,30 +32,34 @@ const {
   PORT = 5000,
 } = process.env;
 
-const pool = mysql.createPool({
-  host: DB_HOST,
-  user: DB_USER,
-  password: DB_PASS,
-  database: DB_NAME,
-  waitForConnections: true,
-  connectionLimit: 10,
-});
-
 async function startServer() {
-  // Initialize database schema if it doesn't exist
+  // 1) Ensure schema (CREATE/ALTER) is applied
   await initSchema(
     {
       host: DB_HOST,
       user: DB_USER,
       password: DB_PASS,
-      multipleStatements: true, // so a single .sql with many CREATEs will run
+      multipleStatements: true,
     },
-    path.resolve(__dirname, "init.sql")
+    resolve(__dirname, "init.sql")
   );
+
+  // 2) Create MySQL pool
+  const pool = mysql.createPool({
+    host: DB_HOST,
+    user: DB_USER,
+    password: DB_PASS,
+    database: DB_NAME,
+    waitForConnections: true,
+    connectionLimit: 10,
+  });
+
+  // 3) Expose via localtunnel
   const tunnel = await localtunnel({ port: PORT, subdomain: "mindfulmedia" });
   const TUNNEL_URL = tunnel.url;
   console.log(`Tunnel live at: ${TUNNEL_URL}`);
 
+  // 4) Verify connection
   try {
     const conn = await pool.getConnection();
     await conn.ping();
@@ -66,6 +70,7 @@ async function startServer() {
     process.exit(1);
   }
 
+  // 5) Express setup
   const app = express();
   app.use(cors());
   app.use(express.json());
@@ -93,23 +98,91 @@ async function startServer() {
     )
   );
 
+  // --- OAuth Endpoints ---
   app.get("/auth/steam/login", passport.authenticate("steam"));
   app.get(
     "/auth/steam/return",
     passport.authenticate("steam", { failureRedirect: "/" }),
-    (req, res) => {
-      if (!req.user?.id) return res.redirect("/login/error");
-      console.log("SteamID:", req.user.id);
-      res.redirect(`http://localhost:3000/${req.user.id}`);
+    async (req, res) => {
+      const steamID = req.user?.id;
+      if (!steamID) return res.redirect("/login/error");
+      console.log("SteamID:", steamID);
+
+      // Fetch and persist profile data
+      try {
+        const profile = await getPlayerSummary(steamID);
+        if (profile) {
+          const conn = await pool.getConnection();
+          await conn.query(
+            ` INSERT IGNORE INTO users (steam_id, display_name)
+                VALUES (?, ?)`,
+            [steamID, profile.personaname]
+          );
+          await upsertUserProfile(conn, steamID, profile);
+          conn.release();
+        }
+      } catch (err) {
+        console.error("Could not fetch/store Steam profile:", err);
+      }
+
+      res.redirect(`http://localhost:3000/${steamID}`);
     }
   );
 
+  // --- API: Player Summary ---
+  app.get("/api/playersummary/:steamid", async (req, res) => {
+    const steamID = req.params.steamid;
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      const [[userRow]] = await conn.query(
+        ` SELECT display_name, persona_name, avatar, avatarfull, profile_url
+          FROM users
+          WHERE steam_id = ?`,
+        [steamID]
+      );
+
+      let profile = userRow;
+      if (!userRow || !userRow.avatarfull) {
+        const fresh = await getPlayerSummary(steamID);
+        if (fresh) {
+          await upsertUserProfile(conn, steamID, fresh);
+          profile = {
+            display_name: fresh.personaname,
+            persona_name: fresh.personaname,
+            avatar: fresh.avatar,
+            avatarfull: fresh.avatarfull,
+            profile_url: fresh.profileurl,
+          };
+        }
+      }
+      conn.release();
+
+      if (!profile) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      res.json({
+        personaName: profile.persona_name,
+        avatar: profile.avatar,
+        avatarfull: profile.avatarfull,
+        profileUrl: profile.profile_url,
+        avatarFound: Boolean(profile.avatar || profile.avatarfull),
+      });
+    } catch (err) {
+      if (conn) {
+        conn.release();
+      }
+      console.error("Error fetching player summary:", err);
+      res.status(500).json({ error: "Failed to fetch player summary" });
+    }
+  });
+
+  // --- API: User's Owned Games ---
   app.get("/api/games/:steamid", async (req, res) => {
     const steamID = req.params.steamid;
     let conn;
-
     try {
-      const owned = await getOwnedGames(steamID); // now just [ {appid,...}, ... ]
+      const owned = await getOwnedGames(steamID);
       conn = await pool.getConnection();
       await conn.beginTransaction();
 
@@ -118,20 +191,23 @@ async function startServer() {
       for (const { appid } of owned) {
         if (!appid) continue;
 
-        // 1) see if we’ve already got a detailed record
-        const existing = await getGameRecord(conn, appid);
-        if (existing && existing.title !== "Unknown") {
+        // check cache
+        const [[existing]] = await conn.query(
+          ` SELECT title
+            FROM games
+            WHERE appid = ?`,
+          [appid]
+        );
+        if (existing && existing.title && existing.title !== "Unknown") {
           await linkUserGame(conn, steamID, appid);
           continue;
         }
 
-        // 2) fetch from Steam only when missing/unknown
+        // fetch & upsert
         const gameData = await getGameData(appid);
         if (gameData) {
           await upsertGame(conn, gameData);
         }
-
-        // 3) link regardless
         await linkUserGame(conn, steamID, appid);
       }
 
@@ -150,7 +226,7 @@ async function startServer() {
     }
   });
 
-  // Single game details route
+  // --- API: Single Game Details ---
   app.get("/api/game/:id", async (req, res) => {
     try {
       const game = await getGameData(req.params.id);
@@ -162,12 +238,12 @@ async function startServer() {
     }
   });
 
-  // Test endpoint
+  // --- API: Test Endpoint ---
   app.get("/api/test", (req, res) => {
     res.json({ message: "Tunnel + Steam OAuth are working!" });
   });
 
-  // Start server
+  // Start listening
   app.listen(PORT, () => {
     console.log(`Backend listening on http://localhost:${PORT}`);
     console.log(`Steam login endpoint: ${TUNNEL_URL}/auth/steam/login`);
@@ -180,7 +256,6 @@ async function startServer() {
   });
 }
 
-// Launch
 startServer().catch((err) => {
   console.error("Failed to start server:", err);
   process.exit(1);

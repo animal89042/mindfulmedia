@@ -51,3 +51,28 @@ export async function getGameData(appid) {
     return null;
   }
 }
+
+export async function getPlayerSummary(steamID) {
+  const key = process.env.STEAM_API_KEY;
+  try {
+    const { data } = await axios.get(
+      "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/",
+      {
+        params: {
+          key,
+          steamids: steamID,
+        },
+      }
+    );
+    const players = data.response?.players;
+    if (!players || !players.length) return null;
+
+    // pick the first (and only) player object - will need future handling for multiple
+    const { personaname, avatar, avatarfull, profileurl } = players[0];
+
+    return { personaname, avatar, avatarfull, profileurl };
+  } catch (error) {
+    console.error("Steam API error (getPlayerSummary):", error.message);
+    return null;
+  }
+}
