@@ -23,3 +23,11 @@ CREATE TABLE IF NOT EXISTS user_games (
   FOREIGN KEY (steam_id) REFERENCES users (steam_id),
   FOREIGN KEY (appid)    REFERENCES games (appid)
 );
+
+CREATE TABLE IF NOT EXISTS journals (
+  id BIGINT AUTO_INCREMENT,
+  appid          BIGINT,
+  entry          TEXT,
+  PRIMARY KEY (id),
+  FOREIGN KEY (appid) REFERENCES games (appid)
+);

@@ -1,0 +1,32 @@
+.journal-page {
+  max-width: 800px;
+  margin: 40px auto;
+  padding: 0 20px;
+  color: var(--text-color);
+}
+
+.journal-page h1 {
+  font-size: 2rem;
+  margin-bottom: 20px;
+}
+
+.journal-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.journal-table th,
+.journal-table td {
+  border: 1px solid var(--nav-border);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.journal-table th {
+  background-color: var(--nav-bg);
+  font-weight: bold;
+}
+
+.journal-table tbody tr:hover {
+  background-color: var(--search-bg);
+}
