@@ -42,11 +42,8 @@ async function initSchema() {
   await initConn.query(ddl);
   await initConn.end();
 
-<<<<<<< HEAD
-  console.log("✅ init.sql applied (database + tables created if missing)");
-=======
   console.log("init.sql applied (database + tables created if missing)");
->>>>>>> tmp
+
 }
 
 const pool = mysql.createPool({
@@ -133,23 +130,19 @@ async function startServer() {
         if (!appid) continue;
 
         // 1) See if we already have a “good” title in games
-<<<<<<< HEAD
-=======
+
         // console.log(`Checking game ${appid} in DB...`);
->>>>>>> tmp
         const [[existing]] = await conn.query(
           `SELECT title, image_url, category
            FROM games
           WHERE appid = ?`,
           [appid]
         );
-<<<<<<< HEAD
+
         console.log("Existing game data:", existing.title);
 
         let gameData;
         if (existing && existing.title && existing.title !== "Unknown") {
-          console.log("helo");
-=======
         // console.log(
         //   "Existing game data:    id: ",
         //   existing.appid,
@@ -159,7 +152,6 @@ async function startServer() {
 
         let gameData;
         if (existing && existing.title && existing.title !== "Unknown") {
->>>>>>> tmp
           // reuse cached row
           gameData = {
             appid,
@@ -207,7 +199,6 @@ async function startServer() {
           //     category,
           //   };
           // }
->>>>>>> tmp
           // upsert into games table
           await conn.query(
             `INSERT INTO games (appid, title, image_url, category)
