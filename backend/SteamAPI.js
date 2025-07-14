@@ -10,17 +10,17 @@ export async function getOwnedGames(steamID) {
         params: {
           key,
           steamid: steamID,
-          include_appinfo: true,
+          include_appinfo: false,
           include_played_free_games: true,
         },
       }
     );
 
     const games = data.response?.games || [];
-    const throttle = games.slice(0, 100);
-
+    // only fetch details for the first 100 games to avoid rate-limiting
+    const toFetch = games.slice(0, 100);
     const gameDetails = await Promise.all(
-      games.map(async (g) => {
+      toFetch.map(async (g) => {
         try {
           const appData = await getGameData(g.appid);
           return (
@@ -33,12 +33,14 @@ export async function getOwnedGames(steamID) {
           );
         } catch (err) {
           console.warn(`Failed to fetch data for appid ${g.appid}`);
-          return {
-            appid: g.appid,
-            title: "Unknown",
-            imageUrl: "",
-            category: "",
-          };
+          return (
+            appData || {
+              appid: g.appid,
+              title: "Unknown",
+              image_url: " ",
+              category: " ",
+            }
+          );
         }
       })
     );
@@ -72,7 +74,7 @@ export async function getGameData(appid) {
       category: categories,
     };
   } catch (error) {
-    console.error("Steam API error for appid:", appid, error.message);
+    console.error("Steam API error:   AppID:", appid, error);
     return null;
   }
 }
