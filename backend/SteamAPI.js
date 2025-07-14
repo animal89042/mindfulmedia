@@ -15,6 +15,7 @@ export async function getOwnedGames(steamID) {
         },
       }
     );
+    console.log("Steam API call (GetOwnedGames):", data);
 
     // return up to the first 100 raw entries
     return (data.response?.games || []).slice(0, 100);
@@ -32,6 +33,7 @@ export async function getGameData(appid) {
         params: { appids: appid },
       }
     );
+    console.log("Steam API call (GetAppDetails):", data);
 
     const game = data[appid];
     if (!game.success || !game.data) return null;
@@ -64,6 +66,7 @@ export async function getPlayerSummary(steamID) {
         },
       }
     );
+    console.log("Steam API call (GetPlayerSummaries):", data);
     const players = data.response?.players;
     if (!players || !players.length) return null;
 
