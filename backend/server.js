@@ -15,6 +15,7 @@ import {
   upsertGame,
   linkUserGame,
   getUserGames,
+  getGameRecord,
 } from "./database.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -95,29 +96,37 @@ async function startServer() {
   app.get("/api/games/:steamid", async (req, res) => {
     const steamID = req.params.steamid;
     let conn;
+
     try {
-      const games = await getOwnedGames(steamID);
+      const owned = await getOwnedGames(steamID); // now just [ {appid,...}, ... ]
       conn = await pool.getConnection();
       await conn.beginTransaction();
 
-      // 1) ensure user exists
       await ensureUser(conn, steamID, req.user?.displayName);
 
-      // 2) upsert each game + link
-      for (const g of games) {
-        await upsertGame(conn, {
-          appid: g.appid,
-          title: g.title,
-          imageUrl: g.imageUrl,
-          category: g.category,
-        });
-        await linkUserGame(conn, steamID, g.appid);
+      for (const { appid } of owned) {
+        if (!appid) continue;
+
+        // 1) see if we’ve already got a detailed record
+        const existing = await getGameRecord(conn, appid);
+        if (existing && existing.title !== "Unknown") {
+          await linkUserGame(conn, steamID, appid);
+          continue;
+        }
+
+        // 2) fetch from Steam only when missing/unknown
+        const gameData = await getGameData(appid);
+        if (gameData) {
+          await upsertGame(conn, gameData);
+        }
+
+        // 3) link regardless
+        await linkUserGame(conn, steamID, appid);
       }
 
       await conn.commit();
       conn.release();
 
-      // 3) fetch & return stored games
       const rows = await getUserGames(pool, steamID);
       res.json(rows);
     } catch (err) {

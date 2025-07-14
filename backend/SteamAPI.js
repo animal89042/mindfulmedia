@@ -10,43 +10,16 @@ export async function getOwnedGames(steamID) {
         params: {
           key,
           steamid: steamID,
-          include_appinfo: false,
+          include_appinfo: false, // we only need appid
           include_played_free_games: true,
         },
       }
     );
 
-    const games = data.response?.games || [];
-    // only fetch details for the first 100 games to avoid rate-limiting
-    const toFetch = games.slice(0, 100);
-    const gameDetails = await Promise.all(
-      toFetch.map(async (g) => {
-        try {
-          const appData = await getGameData(g.appid);
-          return (
-            appData || {
-              appid: g.appid,
-              title: "Unknown",
-              image_url: " ",
-              category: " ",
-            }
-          );
-        } catch (err) {
-          console.warn(`Failed to fetch data for appid ${g.appid}`);
-          return (
-            appData || {
-              appid: g.appid,
-              title: "Unknown",
-              image_url: " ",
-              category: " ",
-            }
-          );
-        }
-      })
-    );
-    return gameDetails;
+    // return up to the first 100 raw entries
+    return (data.response?.games || []).slice(0, 100);
   } catch (err) {
-    console.error("Error fetching owened games:", err.message);
+    console.error("Error fetching owned games:", err.message);
     throw err;
   }
 }
