@@ -43,7 +43,6 @@ async function initSchema() {
   await initConn.end();
 
   console.log("init.sql applied (database + tables created if missing)");
-
 }
 
 const pool = mysql.createPool({
@@ -130,7 +129,6 @@ async function startServer() {
         if (!appid) continue;
 
         // 1) See if we already have a “good” title in games
-
         // console.log(`Checking game ${appid} in DB...`);
         const [[existing]] = await conn.query(
           `SELECT title, image_url, category
@@ -138,11 +136,6 @@ async function startServer() {
           WHERE appid = ?`,
           [appid]
         );
-
-        console.log("Existing game data:", existing.title);
-
-        let gameData;
-        if (existing && existing.title && existing.title !== "Unknown") {
         // console.log(
         //   "Existing game data:    id: ",
         //   existing.appid,
@@ -161,25 +154,6 @@ async function startServer() {
           };
         } else if (existing.title == "Unknown") {
           gameData = await getGameData(appid);
-<<<<<<< HEAD
-          await conn.query(
-            `UPDATE games SET title = ?, image_url = ?, category = ?
-             WHERE appid = ?`,
-            [gameData.title, gameData.imageUrl, gameData.category, appid]
-          );
-        } else {
-          // need to fetch fresh data
-          gameData = await getGameData(appid);
-          if (!gameData) {
-            // fallback if Steam API fails
-            gameData = {
-              appid,
-              title: "Unknown",
-              imageUrl: "null",
-              category: "null",
-            };
-          }
-=======
           if (gameData !== null) {
             await conn.query(
               `UPDATE games SET title = ?, image_url = ?, category = ?
