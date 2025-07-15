@@ -4,7 +4,7 @@ USE mindfulmedia;
 CREATE TABLE IF NOT EXISTS users (
   steam_id      VARCHAR(50) PRIMARY KEY,
   display_name  VARCHAR(255),
-  personaname  VARCHAR(255),
+  persona_name  VARCHAR(255),
   avatar       VARCHAR(512),
   profile_url  VARCHAR(512)
 );

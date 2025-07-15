@@ -114,15 +114,9 @@ async function startServer() {
         if (profile) {
           const conn = await pool.getConnection();
           await conn.query(
-            ` INSERT IGNORE INTO users (steam_id, persona_name, avatar, avatarfull, profile_url)
-                VALUES (?, ?, ?, ?, ?)`,
-            [
-              steamID,
-              profile.personaname,
-              profile.avatar,
-              profile.avatarfull,
-              profile.profileurl,
-            ]
+            ` INSERT IGNORE INTO users (steam_id, persona_name, avatar, profile_url)
+                VALUES (?, ?, ?, ?)`,
+            [steamID, profile.persona_name, profile.avatar, profile.profile_url]
           );
           await upsertUserProfile(conn, steamID, profile);
           conn.release();
@@ -142,14 +136,14 @@ async function startServer() {
     try {
       conn = await pool.getConnection();
       const [[userRow]] = await conn.query(
-        ` SELECT display_name, persona_name, avatar, avatarfull, profile_url
+        ` SELECT display_name, persona_name, avatar, profile_url
           FROM users
           WHERE steam_id = ?`,
         [steamID]
       );
 
       let profile = userRow;
-      if (!userRow || !userRow.avatarfull) {
+      if (!userRow || !userRow.avatar) {
         const fresh = await getPlayerSummary(steamID);
         if (fresh) {
           await upsertUserProfile(conn, steamID, fresh);
@@ -157,7 +151,6 @@ async function startServer() {
             display_name: fresh.personaname,
             persona_name: fresh.personaname,
             avatar: fresh.avatar,
-            avatarfull: fresh.avatarfull,
             profile_url: fresh.profileurl,
           };
         }
@@ -170,9 +163,8 @@ async function startServer() {
       res.json({
         personaName: profile.persona_name,
         avatar: profile.avatar,
-        avatarfull: profile.avatarfull,
         profileUrl: profile.profile_url,
-        avatarFound: Boolean(profile.avatar || profile.avatarfull),
+        avatarFound: Boolean(profile.avatar),
       });
     } catch (err) {
       if (conn) {
