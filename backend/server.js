@@ -114,9 +114,15 @@ async function startServer() {
         if (profile) {
           const conn = await pool.getConnection();
           await conn.query(
-            ` INSERT IGNORE INTO users (steam_id, display_name)
-                VALUES (?, ?)`,
-            [steamID, profile.personaname]
+            ` INSERT IGNORE INTO users (steam_id, persona_name, avatar, avatarfull, profile_url)
+                VALUES (?, ?, ?, ?, ?)`,
+            [
+              steamID,
+              profile.personaname,
+              profile.avatar,
+              profile.avatarfull,
+              profile.profileurl,
+            ]
           );
           await upsertUserProfile(conn, steamID, profile);
           conn.release();
