@@ -61,15 +61,14 @@ export async function getUserGames(pool, steamID) {
 export async function upsertUserProfile(
   conn,
   steamID,
-  { personaname, avatar, avatarfull, profileurl }
+  { personaname, avatar, profileurl }
 ) {
   await conn.query(
     ` UPDATE users
         SET persona_name = ?,
             avatar       = ?,
-            avatarfull   = ?,
             profile_url  = ?
       WHERE steam_id = ?`,
-    [personaname, avatar, avatarfull, profileurl, steamID]
+    [personaname, avatar, profileurl, steamID]
   );
 }
