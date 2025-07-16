@@ -244,20 +244,39 @@ async function startServer() {
   //  ─── Journal: List entries ───────────────────────────────────────────
   app.get("/api/journals", async (req, res) => {
     const { appid } = req.query;
-    if (!appid) {
-      return res
-        .status(400)
-        .json({ error: "appid query parameter is required" });
-    }
     let conn;
     try {
       conn = await pool.getConnection();
-      const [rows] = await conn.query(
-        "SELECT appid, entry FROM journals WHERE appid = ?",
-        [appid]
+      let rows;
+
+      if (appid) {
+        // only this game’s entries
+        [rows] = await conn.query(
+          `SELECT
+             j.appid,
+             g.title,
+             j.entry
+           FROM journals j
+           LEFT JOIN games g ON j.appid = g.appid
+           WHERE j.appid = ?`,
+          [appid]
+        );
+      } else {
+        // global journal
+        [rows] = await conn.query(
+          `SELECT
+             j.appid,
+             g.title,
+             j.entry
+           FROM journals j
+           LEFT JOIN games g ON j.appid = g.appid`
+        );
+      }
+
+      console.log(
+        `Fetched ${rows.length} journal entries${appid ? ` for ${appid}` : ""}`
       );
       res.json(rows);
-      console.log(`Fetched ${rows.length} journal entries for appid ${appid}`);
     } catch (err) {
       console.error("Error fetching journal entries:", err);
       res.status(500).json({ error: "Failed to fetch journal entries" });
@@ -265,7 +284,6 @@ async function startServer() {
       if (conn) conn.release();
     }
   });
-
   //  ─── Journal: Create a new entry ────────────────────────────────────
   app.post("/api/journals", async (req, res) => {
     const { appid, entry } = req.body;

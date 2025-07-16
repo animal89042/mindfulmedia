@@ -98,7 +98,8 @@ const NavigationBar = ({ onSearch }) => {
         {savedSteamID &&
         avatarFound &&
         (location.pathname === `/${savedSteamID}` ||
-          !!location.pathname.match(/^\/GamePage(?:\/|$)/)) ? (
+          !!location.pathname.match(/^\/GamePage(?:\/|$)/) ||
+          location.pathname === "/journal") ? (
           <button className="avatar-button" onClick={handleAvatarClick}>
             <img src={avatarUrl} alt="User Avatar" className="avatar-image" />
             {/* <span className="nav-displayname">{displayName}</span> */}
