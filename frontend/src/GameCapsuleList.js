@@ -9,6 +9,25 @@ const GameCapsuleList = ({ searchQuery }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // new state for persona_name
+  const [personaName, setPersonaName] = useState("");
+
+  // Fetch persona_name from your backend
+  useEffect(() => {
+    if (!steamid) return;
+    axios
+      .get(`http://localhost:5000/api/playersummary/${steamid}`)
+      .then(({ data }) => {
+        // backend sends `personaName`, not `persona_name`
+        setPersonaName(data.personaName || steamid);
+        console.log("Fetched persona name:", data.personaName);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch persona name:", err);
+        setPersonaName(steamid);
+      });
+  }, [steamid]);
+
   // Fetch owned games
   useEffect(() => {
     if (!steamid) return;
@@ -50,8 +69,7 @@ const GameCapsuleList = ({ searchQuery }) => {
 
   return (
     <>
-      <h1>Game Collection for {steamid}</h1>
-
+      <h1>Game Collection for {personaName}</h1>
       <div className="games-container">
         {filteredGames.map((game) => (
           <Link

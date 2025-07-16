@@ -184,7 +184,7 @@ async function startServer() {
       conn = await pool.getConnection();
       await conn.beginTransaction();
 
-      await ensureUser(conn, steamID, req.user?.displayName);
+      await ensureUser(conn, steamID, null); // simplified ensureUser
 
       for (const { appid } of owned) {
         if (!appid) continue;
@@ -219,7 +219,7 @@ async function startServer() {
         await conn.rollback().catch(() => {});
         conn.release();
       }
-      console.error("Error fetching games:", err);
+      console.error("Error in /api/games:", err);
       res.status(500).json({ error: "Failed to fetch games" });
     }
   });

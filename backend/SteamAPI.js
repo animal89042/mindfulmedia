@@ -29,13 +29,11 @@ export async function getGameData(appid) {
   try {
     const { data } = await axios.get(
       "https://store.steampowered.com/api/appdetails",
-      {
-        params: { appids: appid },
-      }
+      { params: { appids: appid } }
     );
     console.log("Steam API call (GetAppDetails):", data);
-
     const game = data[appid];
+
     if (!game.success || !game.data) return null;
 
     const categories = game.data.categories
@@ -49,7 +47,7 @@ export async function getGameData(appid) {
       category: categories,
     };
   } catch (error) {
-    console.error("Steam API error:   AppID:", appid, error);
+    console.error("Steam API error (getGameData):   AppID:", appid, error);
     return null;
   }
 }
