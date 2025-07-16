@@ -278,6 +278,7 @@ async function startServer() {
       if (conn) conn.release();
     }
   });
+
   //  ─── Journal: Create a new entry ────────────────────────────────────
   app.post("/api/journals", async (req, res) => {
     const { appid, entry } = req.body;
