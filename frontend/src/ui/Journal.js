@@ -33,14 +33,14 @@ const Journal = () => {
         <table className="journal-table">
           <thead>
             <tr>
-              <th>App ID</th>
+              <th>Game</th>
               <th>Entry</th>
             </tr>
           </thead>
           <tbody>
             {entries.map((e, i) => (
               <tr key={i}>
-                <td>{e.appid}</td>
+                <td>{e.title}</td>
                 <td>{e.entry}</td>
               </tr>
             ))}

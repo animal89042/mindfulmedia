@@ -31,7 +31,7 @@ export async function getGameData(appid) {
       "https://store.steampowered.com/api/appdetails",
       { params: { appids: appid } }
     );
-    console.log("Steam API call (GetAppDetails):", data);
+    console.log("Steam API call (GetAppDetails):", appid);
     const game = data[appid];
 
     if (!game.success || !game.data) return null;
