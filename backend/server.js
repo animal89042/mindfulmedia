@@ -252,24 +252,18 @@ async function startServer() {
       if (appid) {
         // only this game’s entries
         [rows] = await conn.query(
-          `SELECT
-             j.appid,
-             g.title,
-             j.entry
-           FROM journals j
-           LEFT JOIN games g ON j.appid = g.appid
-           WHERE j.appid = ?`,
+          ` SELECT j.appid, g.title, j.entry
+            FROM journals j
+            LEFT JOIN games g ON j.appid = g.appid
+            WHERE j.appid = ?`,
           [appid]
         );
       } else {
         // global journal
         [rows] = await conn.query(
-          `SELECT
-             j.appid,
-             g.title,
-             j.entry
-           FROM journals j
-           LEFT JOIN games g ON j.appid = g.appid`
+          ` SELECT j.appid, g.title, j.entry
+            FROM journals j
+            LEFT JOIN games g ON j.appid = g.appid`
         );
       }
 
