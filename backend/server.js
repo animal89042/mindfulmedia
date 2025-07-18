@@ -33,12 +33,14 @@ const {
   PORT = 5000,
 } = process.env;
 
+
+
 async function startServer() {
   // 1) Ensure schema (CREATE/ALTER) is applied
   await initSchema(
     {
       host: DB_HOST,
-      port: DB_PORT,
+      port: Number(DB_PORT),
       user: DB_USER,
       password: DB_PASS,
       multipleStatements: true,
@@ -49,12 +51,20 @@ async function startServer() {
   // 2) Create MySQL pool
   const pool = mysql.createPool({
     host: DB_HOST,
-    port: DB_PORT,
+    port: Number(DB_PORT),
     user: DB_USER,
     password: DB_PASS,
     database: DB_NAME,
     waitForConnections: true,
     connectionLimit: 10,
+  });
+
+  console.log({
+    DB_HOST,
+    DB_PORT,
+    DB_USER,
+    DB_PASS: DB_PASS ? "***" : null,
+    DB_NAME,
   });
 
   // 3) Expose via localtunnel
