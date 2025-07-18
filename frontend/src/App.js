@@ -21,7 +21,7 @@ function App() {
         console.error("COULDNT SIEZE THE BACKEND ARGHHHH", error)
       );
   }, []);
-
+//this is a test for autodeploying using vercel
   return (
     <Router>
       <div className="App">
