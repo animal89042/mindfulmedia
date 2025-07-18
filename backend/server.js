@@ -95,7 +95,7 @@ async function startServer() {
   passport.use(
     new SteamStrategy(
       {
-        returnURL: `${BASE_URL}/api/auth/steam/return`,
+        returnURL: `${BASE_URL}/auth/steam/return`,
         realm: BASE_URL,
         apiKey: STEAM_API_KEY,
         stateless: true,
@@ -313,7 +313,7 @@ async function startServer() {
   // Start listening
   app.listen(PORT, () => {
     console.log(`Backend listening on http://localhost:${PORT}`);
-    console.log(`Steam login endpoint: ${BASE_URL}/api/auth/steam/login`);
+    console.log(`Steam login endpoint: ${BASE_URL}/auth/steam/login`);
   });
 
   process.on("SIGINT", async () => {
