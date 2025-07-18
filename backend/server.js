@@ -33,6 +33,7 @@ const {
   PORT = 5000,
 } = process.env;
 
+const BASE_URL = process.env.USE_LT === "true" ? tunnel.url : process.env.PUBLIC_URL; //oo fancy I like
 
 
 async function startServer() {
@@ -59,18 +60,10 @@ async function startServer() {
     connectionLimit: 10,
   });
 
-  console.log({
-    DB_HOST,
-    DB_PORT,
-    DB_USER,
-    DB_PASS: DB_PASS ? "***" : null,
-    DB_NAME,
-  });
-
   // 3) Expose via localtunnel
   const tunnel = await localtunnel({ port: PORT, subdomain: "mindfulmedia" });
-  const TUNNEL_URL = tunnel.url;
-  console.log(`Tunnel live at: ${TUNNEL_URL}`);
+  const TUNNEL_URL = tunnel.url; //FIXME delete? BASE_URL covers practical use.
+  console.log(`Tunnel live at: ${TUNNEL_URL}`); // ^
 
   // 4) Verify connection
   try {
@@ -102,8 +95,8 @@ async function startServer() {
   passport.use(
     new SteamStrategy(
       {
-        returnURL: `${TUNNEL_URL}/auth/steam/return`,
-        realm: TUNNEL_URL,
+        returnURL: `${BASE_URL}/auth/steam/return`,
+        realm: BASE_URL,
         apiKey: STEAM_API_KEY,
         stateless: true,
       },
@@ -112,9 +105,9 @@ async function startServer() {
   );
 
   // --- OAuth Endpoints ---
-  app.get("/auth/steam/login", passport.authenticate("steam"));
+  app.get("/api/auth/steam/login", passport.authenticate("steam"));
   app.get(
-    "/auth/steam/return",
+    "/api/auth/steam/return",
     passport.authenticate("steam", { failureRedirect: "/" }),
     async (req, res) => {
       const steamID = req.user?.id;
@@ -320,7 +313,7 @@ async function startServer() {
   // Start listening
   app.listen(PORT, () => {
     console.log(`Backend listening on http://localhost:${PORT}`);
-    console.log(`Steam login endpoint: ${TUNNEL_URL}/auth/steam/login`);
+    console.log(`Steam login endpoint: ${BASE_URL}/api/auth/steam/login`);
   });
 
   process.on("SIGINT", async () => {

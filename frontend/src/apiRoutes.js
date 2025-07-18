@@ -1,7 +1,7 @@
-const BASE = process.env.REACT_APP_BASE || 'http://localhost:5000/api';
+const BASE = process.env.REACT_APP_BASE || 'https://mindfulmedia.loca.lt/api';
 
 const apiRoutes = {
-    login: `${BASE}/auth/login`,
+    login: `${BASE}/auth/steam/login`,
     getUser: (steamid) => `${BASE}/users/${steamid}`,
     getGame: (appid) => `${BASE}/game/${appid}`, //fetch game details
     getGames: (appid) => `${BASE}/games/${appid}`,

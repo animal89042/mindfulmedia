@@ -109,7 +109,7 @@ const NavigationBar = ({ onSearch }) => {
           <button
             className="nav-button sign-in"
             onClick={() =>
-              (window.location.href = "http://localhost:5000/auth/steam/login")
+              (window.location.href = apiRoutes.login)
             }
           >
             <img
