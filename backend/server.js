@@ -38,6 +38,7 @@ async function startServer() {
   await initSchema(
     {
       host: DB_HOST,
+      port: DB_PORT,
       user: DB_USER,
       password: DB_PASS,
       multipleStatements: true,
@@ -48,6 +49,7 @@ async function startServer() {
   // 2) Create MySQL pool
   const pool = mysql.createPool({
     host: DB_HOST,
+    port: DB_PORT,
     user: DB_USER,
     password: DB_PASS,
     database: DB_NAME,
