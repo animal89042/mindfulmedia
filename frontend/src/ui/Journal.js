@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import "./Journal.css";
+import apiRoutes from "../apiRoutes";
 
 const Journal = () => {
   const [entries, setEntries] = useState([]);
@@ -9,7 +10,7 @@ const Journal = () => {
 
   useEffect(() => {
     axios
-      .get("http://localhost:5000/api/journals")
+      .get(apiRoutes.getJournal)
       .then((res) => {
         setEntries(res.data);
         setLoading(false);

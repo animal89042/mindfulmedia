@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
 import "./GamePage.css";
+import apiRoutes from "../apiRoutes";
 
 const GamePage = () => {
   const { id } = useParams(); // this is your appid
@@ -21,7 +22,7 @@ const GamePage = () => {
   useEffect(() => {
     setLoadingGame(true);
     axios
-      .get(`http://localhost:5000/api/game/${id}`)
+      .get(apiRoutes.getGame(id))
       .then(({ data }) => {
         setGame(data);
         setLoadingGame(false);
@@ -39,7 +40,7 @@ const GamePage = () => {
     setErrorEntries(null);
 
     axios
-      .get(`http://localhost:5000/api/journals?appid=${id}`)
+      .get(apiRoutes.getJournalApp(id))
       .then(({ data }) => {
         setEntries(data);
         setLoadingEntries(false);
@@ -58,7 +59,7 @@ const GamePage = () => {
     setErrorSave(null);
 
     axios
-      .post("http://localhost:5000/api/journals", {
+      .post(apiRoutes.postJournal, {
         appid: id,
         entry: draft.trim(),
       })

@@ -4,6 +4,7 @@ import { Link, useLocation } from "react-router-dom";
 import axios from "axios";
 import Settings from "./Settings";
 import "./NavigationBar.css";
+import apiRoutes from "../apiRoutes";
 
 const NavigationBar = ({ onSearch }) => {
   const location = useLocation();
@@ -32,7 +33,7 @@ const NavigationBar = ({ onSearch }) => {
     if (!savedSteamID) return;
 
     axios
-      .get(`http://localhost:5000/api/playersummary/${savedSteamID}`)
+      .get(apiRoutes.getPlayerSummary(savedSteamID))
       .then((res) => {
         const { avatarFound: af, avatarfull, avatar, personaName } = res.data;
         setAvatarFound(af);
