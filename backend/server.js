@@ -131,7 +131,7 @@ async function startServer() {
         console.error("Could not fetch/store Steam profile:", err);
       }
 
-      res.redirect(`http://localhost:3000/${steamID}`);
+      res.redirect(`https://mindfulmedia-8jw6.vercel.app/${steamID}`);
     }
   );
 
