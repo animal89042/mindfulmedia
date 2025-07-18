@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import axios from "axios";
 import GameCapsule from "./ui/GameCapsule"; //formatting for games data
+import apiRoutes from "./apiRoutes";
 
 const GameCapsuleList = ({ searchQuery }) => {
   const { steamid } = useParams();
@@ -16,7 +17,7 @@ const GameCapsuleList = ({ searchQuery }) => {
   useEffect(() => {
     if (!steamid) return;
     axios
-      .get(`http://localhost:5000/api/playersummary/${steamid}`)
+      .get(apiRoutes.getPlayerSummary(steamid))
       .then(({ data }) => {
         // backend sends `personaName`, not `persona_name`
         setPersonaName(data.personaName || steamid);
@@ -35,7 +36,7 @@ const GameCapsuleList = ({ searchQuery }) => {
     setError(null);
 
     axios
-      .get(`http://localhost:5000/api/games/${steamid}`)
+      .get(apiRoutes.getGames(steamid))
       .then((res) => {
         setGames(res.data);
         setLoading(false);
