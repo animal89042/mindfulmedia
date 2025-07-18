@@ -95,7 +95,7 @@ async function startServer() {
   passport.use(
     new SteamStrategy(
       {
-        returnURL: `${BASE_URL}/auth/steam/return`,
+        returnURL: `${BASE_URL}/api/auth/steam/return`,
         realm: BASE_URL,
         apiKey: STEAM_API_KEY,
         stateless: true,
