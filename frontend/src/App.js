@@ -7,6 +7,7 @@ import NavigationBar from "./ui/NavigationBar";
 import GamePage from "./ui/GamePage";
 import GameCapsuleList from "./GameCapsuleList";
 import Journal from "./ui/Journal"; //Import the dynamic list for users
+import apiRoutes from "./apiRoutes";
 
 function App() {
   const [backendMessage, setBackendMessage] = useState("");
@@ -14,7 +15,7 @@ function App() {
 
   useEffect(() => {
     axios
-      .get("http://localhost:5000/api/test")
+      .get(apiRoutes.getTestConnection)
       .then((response) => setBackendMessage(response.data.message))
       .catch((error) =>
         console.error("COULDNT SIEZE THE BACKEND ARGHHHH", error)
