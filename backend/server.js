@@ -79,11 +79,18 @@ async function startServer() {
 
   // 5) Express setup
   const app = express();
-  const allowedOrigins = ['https://mindfulmedia-8jw6.vercel.app'];
+  const allowedOrigins = [
+    'https://mindfulmedia.vercel.app',
+    'https://mindfulmedia-8jw6.vercel.app',
+    /^https:\/\/mindfulmedia-[^.]+\.vercel\.app$/
+  ];
   app.use(cors({
-    origin: function(origin, callback) {
-      if (!origin) return callback(null, true); //for no origin req
-      if (allowedOrigins.indexOf(origin) === -1) {
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true); // allow server-to-server or curl requests
+      const isAllowed = allowedOrigins.some(o =>
+          typeof o === 'string' ? o === origin : o.test(origin)
+      );
+      if (!isAllowed) {
         console.log("CORS BLOCKED:", origin);
         return callback(new Error("CORS policy violation"), false);
       }
