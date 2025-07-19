@@ -8,7 +8,10 @@ import apiRoutes from "../apiRoutes";
 
 const NavigationBar = ({ onSearch }) => {
   const location = useLocation();
-
+  const [avatarFound, setAvatarFound] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [displayName, setDisplayName] = useState(""); // ← new
   // Fetch Steam profile summary (avatar + persona name)
   useEffect(() => {
 
@@ -24,7 +27,7 @@ const NavigationBar = ({ onSearch }) => {
         console.error("Failed to fetch player summary:", err);
         setAvatarFound(false);
       });
-  }, [savedSteamID]);
+  }, []);
 
   // Home link changes if signed in
   const homeLink = "/"; //FIXME need to update to smth else to fix home button redirect?
@@ -76,9 +79,8 @@ const NavigationBar = ({ onSearch }) => {
       <div className="navbar-right">
         <Settings theme={theme} toggleTheme={toggleTheme} />
 
-        {savedSteamID &&
-        avatarFound &&
-        (location.pathname === `/${savedSteamID}` ||
+        {avatarFound &&
+        (location.pathname === `/` ||
           !!location.pathname.match(/^\/GamePage(?:\/|$)/) ||
           location.pathname === "/journal") ? (
           <button className="avatar-button" onClick={handleAvatarClick}>
