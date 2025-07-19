@@ -84,6 +84,7 @@ async function startServer() {
     origin: function(origin, callback) {
       if (!origin) return callback(null, true); //for no origin req
       if (allowedOrigins.indexOf(origin) === -1) {
+        console.log("CORS BLOCKED:", origin);
         return callback(new Error("CORS policy violation"), false);
       }
       return callback(null, true);
