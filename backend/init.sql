@@ -26,8 +26,13 @@ CREATE TABLE IF NOT EXISTS user_games (
 
 CREATE TABLE IF NOT EXISTS journals (
   id BIGINT AUTO_INCREMENT,
+  steam_id   VARCHAR(50),
   appid          BIGINT,
   entry          TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  edited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  title VARCHAR(255),
   PRIMARY KEY (id),
+  FOREIGN KEY (steam_id) REFERENCES users (steam_id),
   FOREIGN KEY (appid) REFERENCES games (appid)
 );

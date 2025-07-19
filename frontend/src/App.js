@@ -8,6 +8,7 @@ import GamePage from "./ui/GamePage";
 import GameCapsuleList from "./GameCapsuleList";
 import Journal from "./ui/Journal"; //Import the dynamic list for users
 import apiRoutes from "./apiRoutes";
+import HomePage from "./HomePage";
 
 function App() {
   const [backendMessage, setBackendMessage] = useState("");
@@ -41,19 +42,18 @@ function App() {
 
           {/* Route for SteamID-specific game list */}
           <Route
-            path="/:steamid"
-            element={<GameCapsuleList searchQuery={searchQuery} />}
+            path="/"
+            element={<HomePage searchQuery={searchQuery} />}
           />
 
           <Route path="/journal" element={<Journal />} />
 
           {/* Default page */}
           <Route
-            path="/"
+            path="*"
             element={
               <p>
-                Please login or enter your SteamID in the URL to see your game
-                collection.
+                Page Not Found: Error 404
               </p>
             }
           />

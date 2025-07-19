@@ -9,31 +9,11 @@ import apiRoutes from "../apiRoutes";
 const NavigationBar = ({ onSearch }) => {
   const location = useLocation();
 
-  // SteamID saved in localStorage
-  const [savedSteamID, setSavedSteamID] = useState(() =>
-    localStorage.getItem("steamid")
-  );
-  const [avatarFound, setAvatarFound] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [displayName, setDisplayName] = useState(""); // ← new
-
-  // Persist SteamID from URL into localStorage
-  useEffect(() => {
-    const match = location.pathname.match(/^\/(\d{17,})$/);
-    if (match) {
-      const id = match[1];
-      localStorage.setItem("steamid", id);
-      setSavedSteamID(id);
-    }
-  }, [location.pathname]);
-
   // Fetch Steam profile summary (avatar + persona name)
   useEffect(() => {
-    if (!savedSteamID) return;
 
     axios
-      .get(apiRoutes.getPlayerSummary(savedSteamID))
+      .get(apiRoutes.getPlayerSummary, { withCredentials: true })
       .then((res) => {
         const { avatarFound: af, avatarfull, avatar, personaName } = res.data;
         setAvatarFound(af);
@@ -47,7 +27,7 @@ const NavigationBar = ({ onSearch }) => {
   }, [savedSteamID]);
 
   // Home link changes if signed in
-  const homeLink = savedSteamID ? `/${savedSteamID}` : "/";
+  const homeLink = "/"; //FIXME need to update to smth else to fix home button redirect?
 
   // Theme toggle (existing)
   const [theme, setTheme] = useState(

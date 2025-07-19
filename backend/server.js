@@ -18,6 +18,7 @@ import {
   getUserGames,
   upsertUserProfile,
 } from "./database.js";
+import { requireSteamID } from './authMiddleware.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -84,14 +85,14 @@ async function startServer() {
     session({
       secret: "thisisarandoms3cr3Tstr1nG123!@#",
       resave: false,
-      saveUninitialized: true,
+      saveUninitialized: false,
     })
   );
   app.use(passport.initialize());
   app.use(passport.session());
 
-  passport.serializeUser((user, done) => done(null, user.id));
-  passport.deserializeUser((id, done) => done(null, { id }));
+  passport.serializeUser((user, done) => done(null, user));
+  passport.deserializeUser((id, done) => done(null, user));
   passport.use(
     new SteamStrategy(
       {
@@ -110,34 +111,43 @@ async function startServer() {
     "/api/auth/steam/return",
     passport.authenticate("steam", { failureRedirect: "/" }),
     async (req, res) => {
-      const steamID = req.user?.id;
-      if (!steamID) return res.redirect("/login/error");
-      console.log("SteamID:", steamID);
+      const steam_id = req.user?.id;
+      if (!steam_id) return res.redirect("/login/error");
+      console.log("SteamID:", steam_id);
 
       // Fetch and persist profile data
       try {
-        const profile = await getPlayerSummary(steamID);
+        const profile = await getPlayerSummary(steam_id);
         if (profile) {
           const conn = await pool.getConnection();
           await conn.query(
             ` INSERT IGNORE INTO users (steam_id, persona_name, avatar, profile_url)
                 VALUES (?, ?, ?, ?)`,
-            [steamID, profile.persona_name, profile.avatar, profile.profile_url]
+            [steam_id, profile.persona_name, profile.avatar, profile.profile_url]
           );
-          await upsertUserProfile(conn, steamID, profile);
+          await upsertUserProfile(conn, steam_id, profile);
           conn.release();
         }
       } catch (err) {
         console.error("Could not fetch/store Steam profile:", err);
       }
 
-      res.redirect(`https://mindfulmedia-8jw6.vercel.app/${steamID}`);
+      res.redirect(`https://mindfulmedia-8jw6.vercel.app/${steam_id}`);
     }
   );
+  // --- API: Verify Login ---
+  app.get('/api/me', requireSteamID, (req, res) => {
+    const user = req.session.passport.user;
+    res.json({
+      steam_id: user.id,
+      display_name: user.displayName,
+      avatar: user.photos?.[0]?.value //only grab avatar url if it exists
+    });
+  });
 
   // --- API: Player Summary ---
-  app.get("/api/playersummary/:steamid", async (req, res) => {
-    const steamID = req.params.steamid;
+  app.get("/api/playersummary", requireSteamID, async (req, res) => {
+    const steam_id = req.steam_id;
     let conn;
     try {
       conn = await pool.getConnection();
@@ -145,14 +155,14 @@ async function startServer() {
         ` SELECT display_name, persona_name, avatar, profile_url
           FROM users
           WHERE steam_id = ?`,
-        [steamID]
+        [steam_id]
       );
 
       let profile = userRow;
       if (!userRow || !userRow.avatar) {
-        const fresh = await getPlayerSummary(steamID);
+        const fresh = await getPlayerSummary(steam_id);
         if (fresh) {
-          await upsertUserProfile(conn, steamID, fresh);
+          await upsertUserProfile(conn, steam_id, fresh);
           profile = {
             display_name: fresh.personaname,
             persona_name: fresh.personaname,
@@ -182,15 +192,15 @@ async function startServer() {
   });
 
   // --- API: User's Owned Games ---
-  app.get("/api/games/:steamid", async (req, res) => {
-    const steamID = req.params.steamid;
+  app.get("/api/games", requireSteamID, async (req, res) => {
+    const steam_id = req.steam_id;
     let conn;
     try {
-      const owned = await getOwnedGames(steamID);
+      const owned = await getOwnedGames(steam_id);
       conn = await pool.getConnection();
       await conn.beginTransaction();
 
-      await ensureUser(conn, steamID, null); // simplified ensureUser
+      await ensureUser(conn, steam_id, null); // simplified ensureUser
 
       for (const { appid } of owned) {
         if (!appid) continue;
@@ -203,7 +213,7 @@ async function startServer() {
           [appid]
         );
         if (existing && existing.title && existing.title !== "Unknown") {
-          await linkUserGame(conn, steamID, appid);
+          await linkUserGame(conn, steam_id, appid);
           continue;
         }
 
@@ -212,13 +222,13 @@ async function startServer() {
         if (gameData) {
           await upsertGame(conn, gameData);
         }
-        await linkUserGame(conn, steamID, appid);
+        await linkUserGame(conn, steam_id, appid);
       }
 
       await conn.commit();
       conn.release();
 
-      const rows = await getUserGames(pool, steamID);
+      const rows = await getUserGames(pool, steam_id);
       res.json(rows);
     } catch (err) {
       if (conn) {
@@ -231,7 +241,7 @@ async function startServer() {
   });
 
   // --- API: Single Game Details ---
-  app.get("/api/game/:id", async (req, res) => {
+  app.get("/api/game/:id", requireSteamID, async (req, res) => {
     try {
       const game = await getGameData(req.params.id);
       if (!game) return res.status(404).json({ error: "Game not found" });
@@ -248,8 +258,9 @@ async function startServer() {
   });
 
   //  ─── Journal: List entries ───────────────────────────────────────────
-  app.get("/api/journals", async (req, res) => {
+  app.get("/api/journals", requireSteamID, async (req, res) => {
     const { appid } = req.query;
+    const steam_id = req.steam_id;
     let conn;
     try {
       conn = await pool.getConnection();
@@ -258,18 +269,21 @@ async function startServer() {
       if (appid) {
         // only this game’s entries
         [rows] = await conn.query(
-          ` SELECT j.appid, g.title, j.entry
+          ` SELECT j.id, j.appid, g.title AS game_title, j.entry,
+            j.title AS journal_title, j.created_at, j.edited_at
             FROM journals j
             LEFT JOIN games g ON j.appid = g.appid
-            WHERE j.appid = ?`,
-          [appid]
+            WHERE j.appid = ? AND j.steam_id = ?`,
+          [appid, steam_id]
         );
       } else {
-        // global journal
         [rows] = await conn.query(
-          ` SELECT j.appid, g.title, j.entry
-            FROM journals j
-            LEFT JOIN games g ON j.appid = g.appid`
+            `SELECT j.id, j.appid, g.title AS game_title, j.entry,
+            j.title AS journal_title, j.created_at, j.edited_at
+             FROM journals j
+                    LEFT JOIN games g ON j.appid = g.appid
+             WHERE j.steam_id = ?`,
+            [steam_id]
         );
       }
 
@@ -286,22 +300,28 @@ async function startServer() {
   });
 
   //  ─── Journal: Create a new entry ────────────────────────────────────
-  app.post("/api/journals", async (req, res) => {
-    const { appid, entry } = req.body;
+  app.post("/api/journals", requireSteamID, async (req, res) => {
+    const { appid, entry, title } = req.body;
+    const steam_id = req.steam_id;
+
     if (!appid || !entry) {
       return res
         .status(400)
         .json({ error: "Both appid and entry are required" });
     }
+
     let conn;
     try {
       conn = await pool.getConnection();
-      await conn.query("INSERT INTO journals (appid, entry) VALUES (?, ?)", [
+      const safe_title = title ?? ""; // if title is missing
+      await conn.query("INSERT INTO journals (steam_id, appid, entry, title) VALUES (?, ?, ?, ?)", [
+        steam_id,
         appid,
         entry,
+        safe_title
       ]);
       // echo back what was saved
-      res.json({ appid, entry });
+      res.json({ appid, entry, title: safe_title });
     } catch (err) {
       console.error("Error saving journal entry:", err);
       res.status(500).json({ error: "Failed to save journal entry" });
