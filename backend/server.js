@@ -104,7 +104,7 @@ async function startServer() {
     session({
       secret: "thisisarandoms3cr3Tstr1nG123!@#",
       resave: false,
-      saveUninitialized: false,
+      saveUninitialized: true,
       cookie: {
         secure: true,
         httpOnly: true,
