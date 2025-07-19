@@ -96,6 +96,11 @@ async function startServer() {
       secret: "thisisarandoms3cr3Tstr1nG123!@#",
       resave: false,
       saveUninitialized: false,
+      cookie: {
+        secure: true,
+        httpOnly: true,
+        sameSite: false,
+      }
     })
   );
   app.use(passport.initialize());
