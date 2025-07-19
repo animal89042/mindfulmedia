@@ -86,6 +86,7 @@ async function startServer() {
   ];
   app.use(cors({
     origin: function (origin, callback) {
+      console.log("CORS CHECK:", origin); // log every request
       if (!origin) return callback(null, true); // allow server-to-server or curl requests
       const isAllowed = allowedOrigins.some(o =>
           typeof o === 'string' ? o === origin : o.test(origin)
