@@ -18,7 +18,7 @@ import {
   getUserGames,
   upsertUserProfile,
 } from "./database.js";
-import { requireSteamID } from './authMiddleware.js';
+import { requireSteamID } from './AuthMiddleware.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
