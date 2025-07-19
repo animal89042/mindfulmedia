@@ -92,7 +92,7 @@ async function startServer() {
   app.use(passport.session());
 
   passport.serializeUser((user, done) => done(null, user));
-  passport.deserializeUser((id, done) => done(null, user));
+  passport.deserializeUser((user, done) => done(null, user));
   passport.use(
     new SteamStrategy(
       {
