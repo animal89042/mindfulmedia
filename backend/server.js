@@ -132,7 +132,7 @@ async function startServer() {
         console.error("Could not fetch/store Steam profile:", err);
       }
 
-      res.redirect(`https://mindfulmedia-8jw6.vercel.app/${steam_id}`);
+      res.redirect(`https://mindfulmedia-8jw6.vercel.app`);
     }
   );
   // --- API: Verify Login ---
