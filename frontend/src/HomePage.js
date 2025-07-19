@@ -19,7 +19,7 @@ const HomePage = ({ searchQuery }) => {
                 setChecked(true);
             });
     }, []);
-
+    if (!checked) {console.log("YOU FAILED THE CHECK YOU FUCKING LOSER HAHAHA")}
     if (!checked) return <p>Loading...</p>;
 
     return (
