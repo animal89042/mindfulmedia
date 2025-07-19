@@ -79,7 +79,17 @@ async function startServer() {
 
   // 5) Express setup
   const app = express();
-  app.use(cors());
+  const allowedOrigins = ['https://mindfulmedia-8jw6.vercel.app'];
+  app.use(cors({
+    origin: function(origin, callback) {
+      if (!origin) return callback(null, true); //for no origin req
+      if (allowedOrigins.indexOf(origin) === -1) {
+        return callback(new Error("CORS policy violation"), false);
+      }
+      return callback(null, true);
+    },
+    credentials: true, // allow cookies and credentials
+  }));
   app.use(express.json());
   app.use(
     session({
