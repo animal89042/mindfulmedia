@@ -99,7 +99,7 @@ async function startServer() {
       cookie: {
         secure: true,
         httpOnly: true,
-        sameSite: false,
+        sameSite: 'none',
       }
     })
   );
