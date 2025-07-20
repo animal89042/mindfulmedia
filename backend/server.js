@@ -131,41 +131,43 @@ async function startServer() {
   // --- OAuth Endpoints ---
   app.get("/api/auth/steam/login", passport.authenticate("steam"));
   app.get(
-    "/api/auth/steam/return",
-    passport.authenticate("steam", { failureRedirect: "/" }),
-    async (req, res) => {
-      const steam_id = req.user?.id;
-      if (!steam_id) return res.redirect("/login/error");
+      "/api/auth/steam/return",
+      passport.authenticate("steam", { failureRedirect: "/" }),
+      (req, res, next) => {
+        const steam_id = req.user?.id;
+        if (!steam_id) return res.redirect("/login/error");
 
-      req.login(req.user, async (err) => {
-        if (err) {
-          console.error("Login error:", err);
-          return next(err);
-        }
+        // Manually login to save session and send cookie
+        req.login(req.user, async (err) => {
+          if (err) {
+            console.error("Login error:", err);
+            return next(err);
+          }
 
-      console.log("SteamID:", steam_id);
-      console.log("SESSION AT LOGIN RETURN:", req.session);  // logs the session data stored
-      console.log("USER AT LOGIN RETURN:", req.user);        // logged in user profile
-      console.log("SESSION PASSPORT:", req.session.passport.user);
-      // Fetch and persist profile data
-      try {
-        const profile = await getPlayerSummary(steam_id);
-        if (profile) {
-          const conn = await pool.getConnection();
-          await conn.query(
-            ` INSERT IGNORE INTO users (steam_id, persona_name, avatar, profile_url)
-                VALUES (?, ?, ?, ?)`,
-            [steam_id, profile.persona_name, profile.avatar, profile.profile_url]
-          );
-          await upsertUserProfile(conn, steam_id, profile);
-          conn.release();
-        }
-      } catch (err) {
-        console.error("Could not fetch/store Steam profile:", err);
+          console.log("SteamID:", steam_id);
+          console.log("SESSION AT LOGIN RETURN:", req.session);
+          console.log("USER AT LOGIN RETURN:", req.user);
+          console.log("SESSION PASSPORT:", req.session.passport?.user);
+
+          try {
+            const profile = await getPlayerSummary(steam_id);
+            if (profile) {
+              const conn = await pool.getConnection();
+              await conn.query(
+                  `INSERT IGNORE INTO users (steam_id, persona_name, avatar, profile_url)
+             VALUES (?, ?, ?, ?)`,
+                  [steam_id, profile.persona_name, profile.avatar, profile.profile_url]
+              );
+              await upsertUserProfile(conn, steam_id, profile);
+              conn.release();
+            }
+          } catch (err) {
+            console.error("Could not fetch/store Steam profile:", err);
+          }
+
+          res.redirect(`https://mindfulmedia-8jw6.vercel.app`);
+        });
       }
-
-      res.redirect(`https://mindfulmedia-8jw6.vercel.app`);
-    }
   );
   // --- API: Verify Login ---
   app.get('/api/me', requireSteamID, (req, res) => {
