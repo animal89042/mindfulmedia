@@ -148,7 +148,9 @@ async function startServer() {
           }
 
           console.log("SteamID:", steam_id);
+          console.log("BEFORE SESSION LOGIN RETURN");
           console.log("SESSION AT LOGIN RETURN:", req.session);
+          console.log("AFTER SESSION LOGIN RETURN");
           console.log("USER AT LOGIN RETURN:", req.user);
           console.log("SESSION PASSPORT:", req.session.passport?.user);
 
