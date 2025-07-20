@@ -104,7 +104,7 @@ async function startServer() {
     session({
       secret: "thisisarandoms3cr3Tstr1nG123!@#",
       resave: false,
-      saveUninitialized: true,
+      saveUninitialized: false,
       cookie: {
         secure: true,
         httpOnly: true,
@@ -123,7 +123,6 @@ async function startServer() {
         returnURL: `${BASE_URL}/api/auth/steam/return`,
         realm: BASE_URL,
         apiKey: STEAM_API_KEY,
-        stateless: true,
       },
       (identifier, profile, done) => done(null, profile)
     )
