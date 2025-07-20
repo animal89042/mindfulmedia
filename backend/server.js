@@ -137,7 +137,9 @@ async function startServer() {
       const steam_id = req.user?.id;
       if (!steam_id) return res.redirect("/login/error");
       console.log("SteamID:", steam_id);
-
+      console.log("SESSION AT LOGIN RETURN:", req.session);  // logs the session data stored
+      console.log("USER AT LOGIN RETURN:", req.user);        // logged in user profile
+      console.log("SESSION PASSPORT:", req.session.passport.user);
       // Fetch and persist profile data
       try {
         const profile = await getPlayerSummary(steam_id);
