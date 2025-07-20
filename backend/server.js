@@ -136,6 +136,13 @@ async function startServer() {
     async (req, res) => {
       const steam_id = req.user?.id;
       if (!steam_id) return res.redirect("/login/error");
+
+      req.login(req.user, async (err) => {
+        if (err) {
+          console.error("Login error:", err);
+          return next(err);
+        }
+
       console.log("SteamID:", steam_id);
       console.log("SESSION AT LOGIN RETURN:", req.session);  // logs the session data stored
       console.log("USER AT LOGIN RETURN:", req.user);        // logged in user profile
