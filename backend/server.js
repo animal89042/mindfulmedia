@@ -81,7 +81,10 @@ async function startServer() {
   const app = express();
   const allowedOrigins = [
     'https://mindfulmedia.vercel.app',
-    'https://mindfulmedia-8jw6.vercel.app',
+    'https://mindfulmedia-dm83.vercel.app',
+    'https://mindfulmedia-dm83-git-cookiesurg-brody-michaels-projects.vercel.app',
+    'https://mindfulmedia-dm83-od3hzia0e-brody-michaels-projects.vercel.app',
+    'https://mindfulmedia-dm83-brody-michaels-projects.vercel.app',
     /^https:\/\/mindfulmedia-[^.]+\.vercel\.app$/
   ];
   app.use(cors({
@@ -165,7 +168,7 @@ async function startServer() {
             console.error("Could not fetch/store Steam profile:", err);
           }
 
-          res.redirect(`https://mindfulmedia-8jw6.vercel.app`);
+          res.redirect(`https://mindfulmedia-dm83.vercel.app`);
         });
       }
   );
