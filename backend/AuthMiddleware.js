@@ -1,6 +1,10 @@
 export const requireSteamID = (req, res, next) => {
     console.log(req.session?.passport?.user?.id)
     console.log ("USER ID")
+    console.log(req.session?.user?.id)
+    console.log ("NO PASSPORT USER ID")
+    console.log(req.session?.user)
+    console.log ("NO PASSPORT OR ID JUST USER")
 
     console.log('SESSION:', req.session);
     console.log('SESSION PASSPORT:', req.session.passport);
