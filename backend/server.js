@@ -170,7 +170,14 @@ async function startServer() {
             console.error("Could not fetch/store Steam profile:", err);
           }
 
-          res.redirect(`https://mindfulmedia-dm83.vercel.app`);
+          req.session.save((err) => {
+            if (err) {
+              console.error("Session save error:", err);
+              return next(err);
+            }
+            console.log("✅ Session saved, redirecting");
+            res.redirect(`https://mindfulmedia-dm83.vercel.app`);
+          });
         });
       }
   );
