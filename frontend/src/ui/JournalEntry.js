@@ -14,7 +14,7 @@ const JournalEntry = ({ entry, setEntries }) => {
             if (entry.isNew) {
                 // new entry
                 res = await axios.post(apiRoutes.postJournal, {
-                    game_title: entry.game_title,
+                    game_title: entry.appid,
                     journal_title: title,
                     entry: text,
                 }, { withCredentials: true });
