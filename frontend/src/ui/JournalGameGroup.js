@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import JournalEntry from "./JournalEntry";
 
-const JournalGameGroup = ({ game, entries, setEntries }) => {
+const JournalGameGroup = ({ game, appid, entries, setEntries }) => {
     const [expanded, setExpanded] = useState(true);
 
     const toggleExpanded = () => setExpanded((e) => !e);
@@ -15,6 +15,7 @@ const JournalGameGroup = ({ game, entries, setEntries }) => {
             created_at: new Date().toISOString(),
             edited_at: new Date().toISOString(),
             isNew: true,
+            appid: appid
         };
         setEntries((oldEntries) => [newEntry, ...oldEntries]);
     };

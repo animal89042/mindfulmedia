@@ -25,8 +25,14 @@ const Journal = () => {
 
   const groupedEntries = entries.reduce((acc, entry) => {
     const game = entry.game_title || "Unknown Game";
-    acc[game] = acc[game] || [];
-    acc[game].push(entry);
+    const appid = entry.appid || null;
+    if (!acc[game]) {
+      acc[game] = {
+        appid,
+        entries: [],
+      };
+    }
+    acc[game].entries.push(entry);
     return acc;
   }, {});
 
@@ -39,11 +45,12 @@ const Journal = () => {
         {entries.length === 0 ? (
             <p>No entries yet.</p>
         ) : (
-            Object.entries(groupedEntries).map(([game, gameEntries]) => (
+            Object.entries(groupedEntries).map(([game, { appid, entries }]) => (
                 <JournalGameGroup
                     key={game}
                     game={game}
-                    entries={gameEntries}
+                    appid={appid}
+                    entries={entries}
                     setEntries={setEntries}
                 />
             ))
