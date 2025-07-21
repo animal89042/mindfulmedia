@@ -79,6 +79,9 @@ async function startServer() {
 
   // 5) Express setup
   const app = express();
+
+  app.set('trust proxy', 1);
+
   const allowedOrigins = [
     'https://mindfulmedia.vercel.app',
     'https://mindfulmedia-dm83.vercel.app',
