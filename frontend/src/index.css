@@ -9,6 +9,10 @@
   --nav-bg: #1a1a1a;
   --nav-border: #333;
   --search-bg: #2d2d2d;
+  --accent-color: #66b2ff;
+  --icon-color: #ccc;
+  --input-bg: #222;
+  --subtle-text: #aaa;
 }
 
 /* Light‐theme overrides */
@@ -22,6 +26,10 @@ body.light-theme {
   --nav-bg: #f5f5f5;
   --nav-border: #dddddd;
   --search-bg: #e0e0e0;
+  --accent-color: #007bff;
+  --icon-color: #444;
+  --input-bg: #fff;
+  --subtle-text: #777;
 }
 
 body {

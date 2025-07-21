@@ -8,6 +8,8 @@ const apiRoutes = {
     getJournalApp: (appid) => `${BASE}/journals?appid=${appid}`,
     getJournal: `${BASE}/journals`,
     postJournal: `${BASE}/journals`,
+    deleteJournal: (jnl_id) => `${BASE}/journals/${jnl_id}`,
+    updateJournal: (jnl_id) => `${BASE}/journals/${jnl_id}`,
     getPlayerSummary: `${BASE}/playersummary`,
     getTestConnection: `${BASE}/test`,
 };

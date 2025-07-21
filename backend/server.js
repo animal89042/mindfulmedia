@@ -379,6 +379,64 @@ async function startServer() {
     }
   });
 
+  //  ─── Journal: Delete a entry ────────────────────────────────────
+  app.delete("/api/journals/:id", requireSteamID, async (req, res) => {
+    const steam_id = req.steam_id;
+    const entryId = req.params.id;
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      // Make sure the entry belongs to this user before deleting
+      const [[entry]] = await conn.query(
+          `SELECT id FROM journals WHERE id = ? AND steam_id = ?`,
+          [entryId, steam_id]
+      );
+      if (!entry) {
+        return res.status(404).json({ error: "Entry not found or access denied" });
+      }
+      await conn.query(`DELETE FROM journals WHERE id = ?`, [entryId]);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error deleting journal entry:", err);
+      res.status(500).json({ error: "Failed to delete journal entry" });
+    } finally {
+      if (conn) conn.release();
+    }
+  });
+
+  //  ─── Journal: Update a entry ────────────────────────────────────
+  app.put("/api/journals/:id", requireSteamID, async (req, res) => {
+    const steam_id = req.steam_id;
+    const entryId = req.params.id;
+    const { entry, title } = req.body;
+    if (!entry) {
+      return res.status(400).json({ error: "Entry content is required" });
+    }
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      //exists and owns?
+      const [[existing]] = await conn.query(
+          `SELECT id FROM journals WHERE id = ? AND steam_id = ?`,
+          [entryId, steam_id]
+      );
+      if (!existing) {
+        return res.status(404).json({ error: "Entry not found or access denied" });
+      }
+      // update content
+      await conn.query(
+          `UPDATE journals SET entry = ?, title = ?, edited_at = NOW() WHERE id = ?`,
+          [entry, title || "", entryId]
+      );
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error updating journal entry:", err);
+      res.status(500).json({ error: "Failed to update journal entry" });
+    } finally {
+      if (conn) conn.release();
+    }
+  });
+
   // Start listening
   app.listen(PORT, () => {
     console.log(`Backend listening on http://localhost:${PORT}`);
