@@ -13,6 +13,8 @@ const JournalEntry = ({ entry, setEntries }) => {
             let res;
             if (entry.isNew) {
                 // new entry
+                console.log("APPID")
+                console.log(entry.appid)
                 res = await axios.post(apiRoutes.postJournal, {
                     appid: entry.appid,
                     title: title,
