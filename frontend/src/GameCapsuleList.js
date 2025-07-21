@@ -5,7 +5,6 @@ import GameCapsule from "./ui/GameCapsule"; //formatting for games data
 import apiRoutes from "./apiRoutes";
 
 const GameCapsuleList = ({ searchQuery }) => {
-  const { steamid } = useParams();
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -15,28 +14,26 @@ const GameCapsuleList = ({ searchQuery }) => {
 
   // Fetch persona_name from your backend
   useEffect(() => {
-    if (!steamid) return;
     axios
-      .get(apiRoutes.getPlayerSummary(steamid))
+      .get(apiRoutes.getPlayerSummary, { withCredentials: true })
       .then(({ data }) => {
         // backend sends `personaName`, not `persona_name`
-        setPersonaName(data.personaName || steamid);
+        setPersonaName(data.personaName || "Missing Name");
         console.log("Fetched persona name:", data.personaName);
       })
       .catch((err) => {
         console.error("Failed to fetch persona name:", err);
-        setPersonaName(steamid);
+        setPersonaName("(unknown user)");
       });
-  }, [steamid]);
+  }, []);
 
   // Fetch owned games
   useEffect(() => {
-    if (!steamid) return;
     setLoading(true);
     setError(null);
 
     axios
-      .get(apiRoutes.getGames(steamid))
+      .get(apiRoutes.getGames, {withCredentials: true})
       .then((res) => {
         setGames(res.data);
         setLoading(false);
@@ -46,7 +43,7 @@ const GameCapsuleList = ({ searchQuery }) => {
         setError("Failed to fetch games");
         setLoading(false);
       });
-  }, [steamid]);
+  }, []);
 
   // filter by name if there's a query
   const filteredGames = searchQuery
@@ -63,7 +60,7 @@ const GameCapsuleList = ({ searchQuery }) => {
         No games found
         {searchQuery
           ? ` matching “${searchQuery}”`
-          : ` for SteamID: ${steamid}`}
+          : ` for your account`}
       </p>
     );
   }

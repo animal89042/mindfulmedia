@@ -1,14 +1,14 @@
-const BASE = process.env.REACT_APP_BASE_URL || 'https://mindfulmedia-production.up.railway.app/api';
+const BASE = process.env.REACT_API_BASE_URL || 'https://mindfulmedia-testing.up.railway.app/api';
 
 const apiRoutes = {
     login: `${BASE}/auth/steam/login`,
-    getUser: (steamid) => `${BASE}/users/${steamid}`,
+    getUser: `${BASE}/me`,
     getGame: (appid) => `${BASE}/game/${appid}`, //fetch game details
-    getGames: (appid) => `${BASE}/games/${appid}`,
+    getGames:  `${BASE}/games`,
     getJournalApp: (appid) => `${BASE}/journals?appid=${appid}`,
     getJournal: `${BASE}/journals`,
     postJournal: `${BASE}/journals`,
-    getPlayerSummary: (steamid) => `${BASE}/playersummary/${steamid}`,
+    getPlayerSummary: `${BASE}/playersummary`,
     getTestConnection: `${BASE}/test`,
 };
 

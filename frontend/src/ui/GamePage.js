@@ -10,6 +10,7 @@ const GamePage = () => {
   const [loadingGame, setLoadingGame] = useState(true);
   const [errorGame, setErrorGame] = useState(null);
 
+  const [title, setTitle] = useState("");
   const [entries, setEntries] = useState([]);
   const [loadingEntries, setLoadingEntries] = useState(true);
   const [errorEntries, setErrorEntries] = useState(null);
@@ -22,7 +23,7 @@ const GamePage = () => {
   useEffect(() => {
     setLoadingGame(true);
     axios
-      .get(apiRoutes.getGame(id))
+      .get(apiRoutes.getGame(id), { withCredentials: true })
       .then(({ data }) => {
         setGame(data);
         setLoadingGame(false);
@@ -40,7 +41,7 @@ const GamePage = () => {
     setErrorEntries(null);
 
     axios
-      .get(apiRoutes.getJournalApp(id))
+      .get(apiRoutes.getJournalApp(id), { withCredentials: true })
       .then(({ data }) => {
         setEntries(data);
         setLoadingEntries(false);
@@ -62,11 +63,13 @@ const GamePage = () => {
       .post(apiRoutes.postJournal, {
         appid: id,
         entry: draft.trim(),
-      })
+        title: title.trim(),
+      }, { withCredentials: true })
       .then(({ data }) => {
-        // optimistic: prepend the newly-created entry
+        // optimistic: prepend the newly created entry
         setEntries((prev) => [data, ...prev]);
         setDraft("");
+        setTitle("");
       })
       .catch((err) => {
         console.error("Failed to save journal:", err);
@@ -103,7 +106,13 @@ const GamePage = () => {
 
         <section className="journal">
           <h2>My Journal</h2>
-
+          <input
+              type="text"
+              placeholder="Entry Title (optional)"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              disabled={saving}
+          />
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -122,11 +131,13 @@ const GamePage = () => {
           ) : entries.length === 0 ? (
             <p>No entries yet.</p>
           ) : (
-            entries.map((e, i) => (
-              <div key={i} className="entry">
-                <p>{e.entry}</p>
-              </div>
-            ))
+              entries.map((e, i) => (
+                  <div key={i} className="entry">
+                    <h4>{e.journal_title || "(Untitled)"}</h4>
+                    <p>{e.entry}</p>
+                    <small>Last edited: {new Date(e.edited_at).toLocaleString()}</small>
+                  </div>
+              ))
           )}
         </section>
       </div>

@@ -10,7 +10,7 @@ const Journal = () => {
 
   useEffect(() => {
     axios
-      .get(apiRoutes.getJournal)
+      .get(apiRoutes.getJournal, { withCredentials: true })
       .then((res) => {
         setEntries(res.data);
         setLoading(false);
@@ -35,14 +35,18 @@ const Journal = () => {
           <thead>
             <tr>
               <th>Game</th>
+              <th>Entry Title</th>
               <th>Entry</th>
+              <th>Last Edited</th>
             </tr>
           </thead>
           <tbody>
             {entries.map((e, i) => (
               <tr key={i}>
-                <td>{e.title}</td>
+                <td>{e.game_title || "Unknown Game"}</td>
+                <td>{e.journal_title || "(Untitled)"}</td>
                 <td>{e.entry}</td>
+                <td>{new Date(e.edited_at).toLocaleString()}</td>
               </tr>
             ))}
           </tbody>
