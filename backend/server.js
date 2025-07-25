@@ -19,6 +19,7 @@ import {
   upsertUserProfile,
 } from "./database.js";
 import { requireSteamID } from './AuthMiddleware.js';
+import path from "path";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -33,8 +34,6 @@ const {
   STEAM_API_KEY,
   PORT = 5000,
 } = process.env;
-
-const BASE_URL = process.env.USE_LT === "true" ? tunnel.url : process.env.PUBLIC_URL; //oo fancy I like
 
 
 async function startServer() {
@@ -63,6 +62,7 @@ async function startServer() {
 
   // 3) Expose via localtunnel
   const tunnel = await localtunnel({ port: PORT, subdomain: "mindfulmedia" });
+  const BASE_URL = process.env.USE_LT === "TRUE" ? tunnel.url : process.env.PUBLIC_URL; //oo fancy I like
   const TUNNEL_URL = tunnel.url; //FIXME delete? BASE_URL covers practical use.
   console.log(`Tunnel live at: ${TUNNEL_URL}`); // ^
 
@@ -83,12 +83,15 @@ async function startServer() {
   app.set('trust proxy', 1);
 
   const allowedOrigins = [
+      'http://localhost:3000',
+    'https://mindfulmedia.loca.lt',
     'https://mindfulmedia.vercel.app',
     'https://mindfulmedia-dm83.vercel.app',
     'https://mindfulmedia-dm83-git-cookiesurg-brody-michaels-projects.vercel.app',
     'https://mindfulmedia-dm83-od3hzia0e-brody-michaels-projects.vercel.app',
     'https://mindfulmedia-dm83-brody-michaels-projects.vercel.app',
-    /^https:\/\/mindfulmedia-[^.]+\.vercel\.app$/
+    /^https:\/\/mindfulmedia-[^.]+\.vercel\.app$/,
+    /^https:\/\/.*\.loca\.lt$/
   ];
   app.use(cors({
     origin: function (origin, callback) {
@@ -179,7 +182,8 @@ async function startServer() {
               return next(err);
             }
             console.log("✅ Session saved, redirecting");
-            res.redirect(`https://mindfulmedia-dm83.vercel.app`);
+            const REDIR_URL = process.env.USE_LT === "TRUE" ? BASE_URL : process.env.STEAM_REDIRECT; //oo fancy I like
+            res.redirect(REDIR_URL);
           });
         });
       }
@@ -193,7 +197,6 @@ async function startServer() {
       avatar: user.photos?.[0]?.value //only grab avatar url if it exists
     });
   });
-
   // --- API: Player Summary ---
   app.get("/api/playersummary", requireSteamID, async (req, res) => {
     const steam_id = req.steam_id;
@@ -435,6 +438,18 @@ async function startServer() {
     } finally {
       if (conn) conn.release();
     }
+  });
+
+  const buildPath = path.resolve(__dirname, '../frontend/build');
+  app.use(express.static(buildPath));
+
+  app.get(/^\/(?!api).*/, (req, res) => {
+    res.sendFile(path.join(buildPath, 'index.html'), (err) => {
+      if (err) {
+        console.error("Error serving index.html:", err);
+        res.status(500).send(err);
+      }
+    });
   });
 
   // Start listening
