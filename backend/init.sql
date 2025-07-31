@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS users (
   display_name  VARCHAR(255),
   persona_name  VARCHAR(255),
   avatar       VARCHAR(512),
-  profile_url  VARCHAR(512)
+  profile_url  VARCHAR(512),
+  role ENUM('user', 'admin') DEFAULT 'user'
 );
 
 CREATE TABLE IF NOT EXISTS games (

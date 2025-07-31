@@ -5,10 +5,10 @@ import axios from "axios";
 import "./App.css";
 import NavigationBar from "./ui/NavigationBar";
 import GamePage from "./ui/GamePage";
-import GameCapsuleList from "./GameCapsuleList";
 import Journal from "./ui/Journal"; //Import the dynamic list for users
 import apiRoutes from "./apiRoutes";
 import HomePage from "./HomePage";
+import AdminSidebar from './AdminSidebar';
 
 function App() {
   const [backendMessage, setBackendMessage] = useState("");
@@ -25,6 +25,7 @@ function App() {
 //this is a test for autodeploying using vercel
   return (
     <Router>
+      <AdminSidebar />
       <div className="App">
         {/* pass down the setter so Navbar can publish search terms */}
         <NavigationBar onSearch={setSearchQuery} />

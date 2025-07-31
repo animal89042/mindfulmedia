@@ -11,6 +11,7 @@ const HomePage = ({ searchQuery }) => {
         axios
             .get(apiRoutes.getUser, { withCredentials: true })
             .then((res) => {
+                console.log('👤 /api/me →', res.data);
                 setUser(res.data);
                 setChecked(true);
             })
@@ -23,7 +24,7 @@ const HomePage = ({ searchQuery }) => {
     if (!checked) return <p>Loading...</p>;
 
     return (
-        <div>
+        <div style={{position: "relative"}}>
             {!user && (
                 <p style={{ fontStyle: "italic", color: "#777", textAlign: "center" }}>
                     Please log in to view your game library.

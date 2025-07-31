@@ -1,4 +1,4 @@
-const BASE = process.env.REACT_API_BASE_URL || 'https://mindfulmedia-production.up.railway.app/api';
+const BASE = process.env.REACT_APP_API_BASE_URL || '/api';
 
 const apiRoutes = {
     login: `${BASE}/auth/steam/login`,
@@ -7,6 +7,7 @@ const apiRoutes = {
     getGames:  `${BASE}/games`,
     getJournalApp: (appid) => `${BASE}/journals?appid=${appid}`,
     getJournal: `${BASE}/journals`,
+    getAdminUsers: `${BASE}/admin/users`,
     postJournal: `${BASE}/journals`,
     deleteJournal: (jnl_id) => `${BASE}/journals/${jnl_id}`,
     updateJournal: (jnl_id) => `${BASE}/journals/${jnl_id}`,
