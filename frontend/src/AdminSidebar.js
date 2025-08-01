@@ -1,57 +1,65 @@
 import React, { useState, useEffect } from 'react';
-import { Drawer, Button, ScrollArea, Text, Group } from '@mantine/core';
 import apiRoutes from './apiRoutes';
 import axios from 'axios';
+import './AdminSidebar.css';
 
 const AdminSidebar = () => {
     const [users, setUsers] = useState([]);
-    const [opened, setOpened] = useState(true);
+    const [opened, setOpened] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(false);
 
     useEffect(() => {
-        axios
-            .get(apiRoutes.getAdminUsers, { withCredentials: true })
+        axios.get(apiRoutes.getUser, { withCredentials: true })
             .then(res => {
-                console.log('👥 /api/admin/users →', res.data);
-                setUsers(res.data);
+                if (res.data.role === 'admin') setIsAdmin(true);
             })
-            .catch(err => console.error('❗ fetch admin users:', err));
+            .catch(err => console.error('Failed to fetch user role', err));
     }, []);
+
+    useEffect(() => {
+        if (!isAdmin) return;
+        axios.get(apiRoutes.getAdminUsers, { withCredentials: true })
+            .then(res => setUsers(res.data))
+            .catch(err => console.error('Failed to fetch admin users', err));
+    }, [isAdmin]);
+
+    if (!isAdmin) return null;
 
     return (
         <>
-            <Button
-                variant="outline"
+            <button
+                className="admin-btn"
                 onClick={() => setOpened(true)}
-                style={{ position: 'fixed', top: 10, right: 10, zIndex: 1000 }}
             >
                 Admin
-            </Button>
-
-            <Drawer
-                opened={opened}
-                onClose={() => setOpened(false)}
-                zIndex={2000}
-                withinPortal
-                title="Users"
-                padding="md"
-                size="md"
-                position="right"
-            >
-                <ScrollArea style={{ height: 'calc(100vh - 80px)' }}>
-                    {users.length > 0 ? (
-                        users.map(u => (
-                            <Group key={u.id} position="apart" style={{ padding: '8px 0' }}>
-                                <Text weight={500}>{u.name}</Text>
-                                <Text size="sm" color="dimmed">
-                                    {u.role}
-                                </Text>
-                            </Group>
-                        ))
-                    ) : (
-                        <Text>No users found.</Text>
-                    )}
-                </ScrollArea>
-            </Drawer>
+            </button>
+            {opened && (
+                <>
+                    {/* dark overlay to dim the page */}
+                    <div
+                        className="admin-overlay"
+                        onClick={() => setOpened(false)}
+                    />
+                    <div className="admin-panel">
+                        <div className="admin-panel-header">
+                            <span>Users</span>
+                            <button onClick={() => setOpened(false)}>×</button>
+                        </div>
+                        <div className="admin-panel-body">
+                            {users.length > 0 ? (
+                                users.map(u => (
+                                    <div key={u.id} className="admin-user-row">
+                                        <span>{u.name}</span>
+                                        <span className="admin-user-role">{u.role}</span>
+                                    </div>
+                                ))
+                            ) : (
+                                <p>No users found.</p>
+                            )}
+                        </div>
+                    </div>
+                </>
+            )}
         </>
     );
 };
