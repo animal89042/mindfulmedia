@@ -18,7 +18,7 @@ import {
   getUserGames,
   upsertUserProfile,
 } from "./database.js";
-import { requireSteamID } from './AuthMiddleware.js';
+import { requireSteamID, requireAdmin } from './AuthMiddleware.js';
 import path from "path";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -63,8 +63,6 @@ async function startServer() {
   // 3) Expose via localtunnel
   const tunnel = await localtunnel({ port: PORT, subdomain: "mindfulmedia" });
   const BASE_URL = process.env.USE_LT === "TRUE" ? tunnel.url : process.env.PUBLIC_URL; //oo fancy I like
-  const TUNNEL_URL = tunnel.url; //FIXME delete? BASE_URL covers practical use.
-  console.log(`Tunnel live at: ${TUNNEL_URL}`); // ^
 
   // 4) Verify connection
   try {
@@ -165,9 +163,9 @@ async function startServer() {
             if (profile) {
               const conn = await pool.getConnection();
               await conn.query(
-                  `INSERT IGNORE INTO users (steam_id, persona_name, avatar, profile_url)
-             VALUES (?, ?, ?, ?)`,
-                  [steam_id, profile.persona_name, profile.avatar, profile.profile_url]
+                  `INSERT IGNORE INTO users (steam_id, persona_name, avatar, profile_url, role)
+             VALUES (?, ?, ?, ?, ?)`,
+                  [steam_id, profile.persona_name, profile.avatar, profile.profile_url, 'user']
               );
               await upsertUserProfile(conn, steam_id, profile);
               conn.release();
@@ -189,14 +187,50 @@ async function startServer() {
       }
   );
   // --- API: Verify Login ---
-  app.get('/api/me', requireSteamID, (req, res) => {
-    const user = req.session.passport.user;
-    res.json({
-      steam_id: user.id,
-      display_name: user.displayName,
-      avatar: user.photos?.[0]?.value //only grab avatar url if it exists
-    });
+  app.get('/api/me', requireSteamID, async (req, res) => {
+    const steam_id = req.steam_id;
+
+    try {
+      const conn = await pool.getConnection();
+      const [[userRow]] = await conn.query(
+          `SELECT role
+           FROM users
+           WHERE steam_id = ?`,
+          [steam_id]
+      );
+      conn.release;
+      res.json({
+        steam_id,
+        display_name: req.session.passport.user.displayName,
+        avatar: req.session.passport.user.photos?.[0]?.value, //only grab avatar url if it exists
+        role: userRow?.role || 'user'
+      });
+    } catch (err) {
+      console.error("Could not fetch user profile:", err);
+      res.status(500).json({ error: "Unable to fetch user role"})
+    }
   });
+  // --- Admin: list all users ---
+  app.get(
+      "/api/admin/users",
+      requireSteamID,
+      requireAdmin,
+      async (req, res) => {
+        try {
+          const [rows] = await pool.query(
+              `SELECT 
+                steam_id AS id,
+                persona_name AS name,
+                role
+              FROM users`
+          );
+          res.json(rows);
+        } catch (err) {
+          console.error('Error fetching users for admin:', err);
+          res.status(500).json({ error: 'Internal server error' });
+        }
+      }
+  );
   // --- API: Player Summary ---
   app.get("/api/playersummary", requireSteamID, async (req, res) => {
     const steam_id = req.steam_id;
@@ -454,12 +488,11 @@ async function startServer() {
 
   // Start listening
   app.listen(PORT, () => {
-    console.log(`Backend listening on http://localhost:${PORT}`);
-    console.log(`Steam login endpoint: ${BASE_URL}/api/auth/steam/login`);
+    console.log(`Steam Login: ${BASE_URL}/api/auth/steam/login`);
   });
 
   process.on("SIGINT", async () => {
-    console.log("Closing tunnel...");
+    console.log("Closing...");
     await tunnel.close();
     process.exit();
   });
