@@ -79,28 +79,42 @@ const NavigationBar = ({ onSearch }) => {
       <div className="navbar-right">
         <Settings theme={theme} toggleTheme={toggleTheme} />
 
-        {avatarFound &&
-        (location.pathname === `/` ||
-          !!location.pathname.match(/^\/GamePage(?:\/|$)/) ||
-          location.pathname === "/journal") ? (
-          <button className="avatar-button" onClick={handleAvatarClick}>
-            <img src={avatarUrl} alt="User Avatar" className="avatar-image" />
-            {/* <span className="nav-displayname">{displayName}</span> */}
-          </button>
-        ) : (
-          <button
-            className="nav-button sign-in"
-            onClick={() =>
-              (window.location.href = apiRoutes.login)
-            }
-          >
-            <img
-              src="https://steamcommunity-a.akamaihd.net/public/images/signinthroughsteam/sits_01.png"
-              alt="Sign in through Steam"
-              style={{ height: "32px" }}
-            />
-          </button>
-        )}
+          {avatarFound &&
+          (location.pathname === `/` ||
+              !!location.pathname.match(/^\/GamePage(?:\/|$)/) ||
+              location.pathname === "/journal") ? (
+              <div className="user-menu-vertical">
+                  <button className="avatar-button" onClick={handleAvatarClick}>
+                      <img src={avatarUrl} alt="User Avatar" className="avatar-image" />
+                      {/* Optional name */}
+                      {/* <span className="nav-displayname">{displayName}</span> */}
+                  </button>
+                  <button
+                      className="sign-out"
+                      onClick={async () => {
+                          try {
+                              await axios.post(apiRoutes.signOut, {}, { withCredentials: true });
+                              window.location.reload(); // Reload UI to show Sign In
+                          } catch (err) {
+                              console.error("Logout failed:", err);
+                          }
+                      }}
+                  >
+                      Sign Out
+                  </button>
+              </div>
+          ) : (
+              <button
+                  className="nav-button sign-in"
+                  onClick={() => (window.location.href = apiRoutes.login)}
+              >
+                  <img
+                      src="https://steamcommunity-a.akamaihd.net/public/images/signinthroughsteam/sits_01.png"
+                      alt="Sign in through Steam"
+                      style={{ height: "32px" }}
+                  />
+              </button>
+          )}
       </div>
     </nav>
   );

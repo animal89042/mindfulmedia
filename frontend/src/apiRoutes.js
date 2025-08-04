@@ -12,6 +12,7 @@ const apiRoutes = {
     updateJournal: (jnl_id) => `${BASE}/journals/${jnl_id}`,
     getPlayerSummary: `${BASE}/playersummary`,
     getTestConnection: `${BASE}/test`,
+    signOut: `${BASE}/auth/logout`,
 };
 
 export default apiRoutes;
