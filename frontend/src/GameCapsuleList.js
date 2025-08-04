@@ -67,7 +67,9 @@ const GameCapsuleList = ({ searchQuery }) => {
 
   return (
     <>
-      <h1>Game Collection for {personaName}</h1>
+      <h1 style={{textAlign: "center"}}>
+          Game Collection
+          </h1>
       <div className="games-container">
         {filteredGames.map((game) => (
           <Link

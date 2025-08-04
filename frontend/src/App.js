@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import axios from "axios";
 
+import ProfilePage from './ui/ProfilePage';
 import "./App.css";
 import NavigationBar from "./ui/NavigationBar";
 import GamePage from "./ui/GamePage";
@@ -11,52 +12,87 @@ import HomePage from "./HomePage";
 import AdminSidebar from './AdminSidebar';
 
 function App() {
-  const [backendMessage, setBackendMessage] = useState("");
+  // 1) Central auth state
+  const [user, setUser]       = useState(null);
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    axios
+      .get(apiRoutes.getUser, { withCredentials: true })
+      .then(res => setUser(res.data))
+      .catch(() => setUser(null))
+      .finally(() => setChecked(true));
+  }, []);
+
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     axios
       .get(apiRoutes.getTestConnection)
-      .then((response) => setBackendMessage(response.data.message))
-      .catch((error) =>
-        console.error("COULDNT SIEZE THE BACKEND ARGHHHH", error)
-      );
   }, []);
-//this is a test for autodeploying using vercel
+
+  //this is a test for autodeploying using vercel
   return (
     <Router>
-      <AdminSidebar />
+      <AdminSidebar user={user} checked={checked} />
       <div className="App">
         {/* pass down the setter so Navbar can publish search terms */}
-        <NavigationBar onSearch={setSearchQuery} />
+        <NavigationBar
+            user={user}
+            checked={checked}
+            onSearch={setSearchQuery}
+        />
 
         <div
           style={{ marginBottom: "20px", fontStyle: "italic", color: "#555" }}
         >
-          Backend says:{" "}
-          {backendMessage || "Feeding the starving port channels..."}
         </div>
 
         <Routes>
-          {/* Route for individual game page */}
-          <Route path="/GamePage/:id" element={<GamePage />} />
-
-          {/* Route for SteamID-specific game list */}
+          {/* Home, gaurded by checked/user props*/}
           <Route
-            path="/"
-            element={<HomePage searchQuery={searchQuery} />}
+              path="/"
+              element={
+                <HomePage
+                  user={user}
+                  checked={checked}
+                  searchQuery={searchQuery}
+                />
+              }
           />
 
-          <Route path="/journal" element={<Journal />} />
-
-          {/* Default page */}
+          {/* Route for individual game page */}
           <Route
-            path="*"
-            element={
-              <p>
-                Page Not Found: Error 404
-              </p>
-            }
+              path="/GamePage/:id"
+              element={
+                <GamePage user={user} checked={checked} />
+              }
+          />
+
+          {/* Route for Journal Listings */}
+          <Route
+              path="/journal"
+              element={
+                <Journal user={user} checked={checked} />
+              }
+          />
+
+          {/* Route for Profile Page*/}
+          <Route
+              path="profile"
+              element={
+                <ProfilePage
+                    user={user}
+                    setUser={setUser}
+                    checked={checked}
+                />
+              }
+          />
+
+          {/* Catch-all */}
+          <Route
+              path="*"
+              element={<p>Page Not Found: Error 404</p>}
           />
         </Routes>
       </div>
