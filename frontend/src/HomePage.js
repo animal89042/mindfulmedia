@@ -1,35 +1,23 @@
-import React, { useEffect, useState } from "react";
-import axios from "axios";
+import React from "react";
 import GameCapsuleList from "./GameCapsuleList";
-import apiRoutes from "./apiRoutes";
 
-const HomePage = ({ searchQuery }) => {
-    const [user, setUser] = useState(null);
-    const [checked, setChecked] = useState(false);
+const HomePage = ({ user, checked, searchQuery }) => {
 
-    useEffect(() => {
-        axios
-            .get(apiRoutes.getUser, { withCredentials: true })
-            .then((res) => {
-                setUser(res.data);
-                setChecked(true);
-            })
-            .catch(() => {
-                setUser(null);
-                setChecked(true);
-            });
-    }, []);
-    if (!checked) {console.log("YOU FAILED THE CHECK YOU FUCKING LOSER HAHAHA")}
-    if (!checked) return <p>Loading...</p>;
-
-    return (
-        <div>
-            {!user && (
-                <p style={{ fontStyle: "italic", color: "#777", textAlign: "center" }}>
+    // Not logged-in
+    if (!user || !checked) {
+        return (
+            <div>
+                <p style={{fontStyle: "italic", color: "#777", textAlign: "center"}}>
                     Please log in to view your game library.
                 </p>
-            )}
-            <GameCapsuleList searchQuery={searchQuery} />
+            </div>
+        );
+    }
+
+    // Logged-in
+    return (
+        <div>
+            <GameCapsuleList searchQuery={searchQuery}/>
         </div>
     );
 };

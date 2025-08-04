@@ -45,11 +45,22 @@
     cursor: pointer;
 }
 
+.nav-user {
+    cursor: pointer;
+    text-align: center;
+}
+
 .avatar-image {
     width: 40px;
     height: 40px;
     border-radius: 50%;
     transition: transform 0.2s ease; 
+}
+
+.avatar-username {
+    margin-top: 4px;
+    font-size: 0.9rem;
+    color: var(--text-color);
 }
 
 .avatar-button:hover .avatar-image {
