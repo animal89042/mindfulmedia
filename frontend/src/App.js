@@ -29,13 +29,6 @@ function App() {
         {/* pass down the setter so Navbar can publish search terms */}
         <NavigationBar onSearch={setSearchQuery} />
 
-        <div
-          style={{ marginBottom: "20px", fontStyle: "italic", color: "#555" }}
-        >
-          Backend says:{" "}
-          {backendMessage || "Feeding the starving port channels..."}
-        </div>
-
         <Routes>
           {/* Route for individual game page */}
           <Route path="/GamePage/:id" element={<GamePage />} />
@@ -46,7 +39,7 @@ function App() {
             element={<HomePage searchQuery={searchQuery} />}
           />
 
-          <Route path="/journal" element={<Journal />} />
+          <Route path="/journal" element={<Journal searchTerm={searchQuery} />} />
 
           {/* Default page */}
           <Route

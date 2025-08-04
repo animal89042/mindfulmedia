@@ -357,23 +357,23 @@ async function startServer() {
     const steam_id = req.steam_id;
 
     if (!appid || !entry) {
-      return res
-        .status(400)
-        .json({ error: "Both appid and entry are required" });
+      return res.status(400).json({ error: "Both appid and entry are required" });
     }
 
     let conn;
     try {
       conn = await pool.getConnection();
-      const safe_title = title ?? ""; // if title is missing
-      await conn.query("INSERT INTO journals (steam_id, appid, entry, title) VALUES (?, ?, ?, ?)", [
-        steam_id,
-        appid,
-        entry,
-        safe_title
-      ]);
-      // echo back what was saved
-      res.json({ appid, entry, title: safe_title });
+      const safe_title = title ?? "";
+      const [result] = await conn.query(
+          "INSERT INTO journals (steam_id, appid, entry, title) VALUES (?, ?, ?, ?)",
+          [steam_id, appid, entry, safe_title]
+      );
+      const [[newEntry]] = await conn.query(
+          `SELECT id, appid, entry, title AS journal_title, created_at, edited_at
+       FROM journals WHERE id = ?`,
+          [result.insertId]
+      );
+      res.json(newEntry);
     } catch (err) {
       console.error("Error saving journal entry:", err);
       res.status(500).json({ error: "Failed to save journal entry" });
@@ -412,13 +412,14 @@ async function startServer() {
     const steam_id = req.steam_id;
     const entryId = req.params.id;
     const { entry, title } = req.body;
+
     if (!entry) {
       return res.status(400).json({ error: "Entry content is required" });
     }
+
     let conn;
     try {
       conn = await pool.getConnection();
-      //exists and owns?
       const [[existing]] = await conn.query(
           `SELECT id FROM journals WHERE id = ? AND steam_id = ?`,
           [entryId, steam_id]
@@ -426,12 +427,18 @@ async function startServer() {
       if (!existing) {
         return res.status(404).json({ error: "Entry not found or access denied" });
       }
-      // update content
       await conn.query(
           `UPDATE journals SET entry = ?, title = ?, edited_at = NOW() WHERE id = ?`,
           [entry, title || "", entryId]
       );
-      res.json({ success: true });
+
+      const [[updatedEntry]] = await conn.query(
+          `SELECT id, appid, entry, title AS journal_title, created_at, edited_at
+       FROM journals WHERE id = ?`,
+          [entryId]
+      );
+
+      res.json(updatedEntry);
     } catch (err) {
       console.error("Error updating journal entry:", err);
       res.status(500).json({ error: "Failed to update journal entry" });
