@@ -22,7 +22,7 @@ const JournalEntry = ({ entry, setEntries }) => {
             } else {
                 // existing entry edited
                 res = await axios.put(apiRoutes.updateJournal(entry.id), {
-                    journal_title: title,
+                    title: title,
                     entry: text,
                 }, { withCredentials: true });
             }

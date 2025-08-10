@@ -75,7 +75,9 @@
 .entry-text {
   flex-grow: 1;
   white-space: pre-wrap;
-  word-break: break-word;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-all;
   color: var(--text-color);
 }
 
