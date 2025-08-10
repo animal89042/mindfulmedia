@@ -22,7 +22,7 @@ import { requireSteamID, requireAdmin } from './AuthMiddleware.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const { STEAM_API_KEY, PORT = 5000, PUBLIC_URL } = process.env;
+const { STEAM_API_KEY, PORT = 5000, } = process.env;
 
 
 async function startServer() {
@@ -40,8 +40,15 @@ async function startServer() {
     process.exit(1);
   }
 
-  // 3) Express setup
-  const BASE_URL = PUBLIC_URL || `http://localhost${PORT}`;
+  // 3) Production or Development check
+  let BASE_URL;
+  if (process.env.NODE_ENV === "production") {
+    BASE_URL = process.env.PUBLIC_URL;
+  } else {
+    BASE_URL = `http://localhost${PORT}`;
+  }
+
+  // 4) Express setup
   const app = express();
 
   app.set('trust proxy', 1);
@@ -138,7 +145,7 @@ async function startServer() {
               return next(err);
             }
             console.log("✅ Session saved, redirecting");
-            const REDIRECT_URL = process.env.STEAM_REDIRECT;
+            const REDIRECT_URL = process.env.NODE_ENV !== "production" ? BASE_URL : process.env.STEAM_REDIRECT;
             res.redirect(REDIRECT_URL);
           });
         });
