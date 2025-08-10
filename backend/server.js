@@ -454,10 +454,10 @@ async function startServer() {
     }
   });
 
-  if (process.env.NODE_ENV !== 'production') {
-    const buildPath = resolve(__dirname, '../frontend/build');
-    app.use(express.static(buildPath));
+  const buildPath = resolve(__dirname, '../frontend/build');
+  app.use(express.static(buildPath));
 
+  if (process.env.NODE_ENV === 'production') {
     app.get(/^\/(?!api).*/, (req, res) => {
       res.sendFile(join(buildPath, 'index.html'), (err) => {
         if (err) {
