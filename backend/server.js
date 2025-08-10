@@ -137,16 +137,9 @@ async function startServer() {
           } catch (err) {
             console.error("Could not fetch/store Steam profile:", err);
           }
-
-          req.session.save((err) => {
-            if (err) {
-              console.error("Session save error:", err);
-              return next(err);
-            }
-            console.log("✅ Session saved, redirecting");
-            const REDIRECT_URL = process.env.NODE_ENV !== "production" ? BASE_URL : process.env.STEAM_REDIRECT;
-            res.redirect(REDIRECT_URL);
-          });
+          console.log("✅ Session saved, redirecting");
+          const REDIRECT_URL = process.env.NODE_ENV !== "production" ? BASE_URL : process.env.STEAM_REDIRECT;
+          res.redirect(REDIRECT_URL);
         });
       }
   );
