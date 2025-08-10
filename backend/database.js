@@ -1,8 +1,5 @@
 // database.js
-import fs from "fs";
 import mysql from "mysql2/promise";
-import dotenv from "dotenv";
-dotenv.config();
 
 const {
   DB_HOST,
@@ -13,6 +10,10 @@ const {
   TIDB_ENABLE_SSL,
 } = process.env;
 
+const wantTLS =
+    String(TIDB_ENABLE_SSL ?? (DB_HOST?.includes("tidbcloud.com") ? "true" : "false"))
+        .toLowerCase() === "true";
+
 // 1) Create MySQL pool
 export const pool = mysql.createPool({
   host: DB_HOST,
@@ -21,16 +22,13 @@ export const pool = mysql.createPool({
   password: DB_PASS,
   database: DB_NAME,
   waitForConnections: true,
-  connectionLimit: 10,
-  ssl:
-      // TiDB Serverless requires TLS; Node’s system CAs are fine
-      String(TIDB_ENABLE_SSL).toLowerCase() === "true"
-          ? { minVersion: "TLSv1.2", rejectUnauthorized: true }
-          : undefined,
+  connectionLimit: 5,
+  ssl: wantTLS ? { minVersion: "TLSv1.2", rejectUnauthorized: true } : undefined,
 });
 
 /* Run init.sql (with CREATE/ALTER statements) once at startup. */
 export async function initSchema(sqlFilePath) {
+    const fs = await import("fs");
     const raw = fs.readFileSync(sqlFilePath, "utf8");
     const conn = await pool.getConnection();
     try {

@@ -4,7 +4,7 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import express from "express";
 import cors from "cors";
-import session from "express-session";
+import cookieSession from "cookie-session";
 import passport from "passport";
 import { Strategy as SteamStrategy } from "passport-steam";
 import { getOwnedGames, getGameData, getPlayerSummary } from "./SteamAPI.js";
@@ -42,7 +42,7 @@ async function startServer() {
   }
 
   // 3) Express setup
-  const BASE_URL = process.env.BASE_URL;
+  const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
   const app = express();
 
   app.set('trust proxy', 1);
@@ -69,18 +69,14 @@ async function startServer() {
     credentials: true, // allow cookies and credentials
   }));
   app.use(express.json());
-  app.use(
-      session({
-        secret: process.env.SESSION_SECRET || "thisisarandoms3cr3Tstr1nG123!@#",
-        resave: false,
-        saveUninitialized: false,
-        cookie: {
-          secure: process.env.NODE_ENV === 'production',
-          httpOnly: true,
-          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
-        }
-      })
-  );
+  app.use(cookieSession({
+        name: "mm.sid",
+        keys: [process.env.SESSION_SECRET || "mindfulmediaBMG"],
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+  }));
   app.use(passport.initialize());
   app.use(passport.session());
 
