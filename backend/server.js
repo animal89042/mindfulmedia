@@ -1,10 +1,9 @@
 // server.js
 import { dirname, resolve, join } from "path";
 import { fileURLToPath } from "url";
-import dotenv from "dotenv";
 import express from "express";
 import cors from "cors";
-import cookieSession from "cookie-session";
+import session from "express-session";
 import passport from "passport";
 import { Strategy as SteamStrategy } from "passport-steam";
 import { getOwnedGames, getGameData, getPlayerSummary } from "./SteamAPI.js";
@@ -59,7 +58,7 @@ async function startServer() {
   ];
 
   app.use(cors({
-    function (origin, callback) {
+    origin(origin, callback) {
       console.log("CORS CHECK:", origin); // log every request
       if (!origin) return callback(null, true); // allow server-to-server or curl requests
       const isAllowed = allowedOrigins.some(o =>
@@ -74,13 +73,17 @@ async function startServer() {
     credentials: true, // allow cookies and credentials
   }));
   app.use(express.json());
-  app.use(cookieSession({
+  app.use(session({
         name: "mm.sid",
-        keys: [process.env.SESSION_SECRET || "mindfulmediaBMG"],
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+        secret: process.env.SESSION_SECRET || "mindfulmediaBMG",
+        resave: false,
+        saveUninitialized: false,
+    cookie: {
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    },
   }));
   app.use(passport.initialize());
   app.use(passport.session());
@@ -478,7 +481,7 @@ async function startServer() {
       if (err) return next(err);
       req.session.destroy(err2 => {
         if (err2) return next(err2);
-        res.clearCookie('connect.sid');
+        res.clearCookie('mm.sid');
         res.redirect('/');
       });
     });
