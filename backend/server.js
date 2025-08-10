@@ -61,13 +61,8 @@ async function startServer() {
     origin(origin, callback) {
       console.log("CORS CHECK:", origin); // log every request
       if (!origin) return callback(null, true); // allow server-to-server or curl requests
-      const isAllowed = allowedOrigins.some(o =>
-          typeof o === 'string' ? o === origin : o.test(origin)
-      );
-      if (!isAllowed) {
-        console.log("CORS BLOCKED:", origin);
-        return callback(new Error("CORS policy violation"), false);
-      }
+      const ok = allowedOrigins.some(o => typeof o === 'string' ? o === origin : o.test(origin));
+      if (!ok) { console.log("CORS BLOCKED:", origin); return callback(new Error("CORS policy violation"), false); }
       return callback(null, true);
     },
     credentials: true, // allow cookies and credentials
