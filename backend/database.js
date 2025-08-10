@@ -1,5 +1,13 @@
 // database.js
 import mysql from "mysql2/promise";
+import dotenv from "dotenv";
+import { dirname, resolve } from "path";
+import { fileURLToPath } from "url";
+import fs from "fs";
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+// Always load the backend/.env, even if CWD is different
+dotenv.config({ path: resolve(__dirname, ".env") });
 
 const {
   DB_HOST,
@@ -10,9 +18,8 @@ const {
   TIDB_ENABLE_SSL,
 } = process.env;
 
-const wantTLS =
-    String(TIDB_ENABLE_SSL ?? (DB_HOST?.includes("tidbcloud.com") ? "true" : "false"))
-        .toLowerCase() === "true";
+const hostIsTiDB = !!DB_HOST && DB_HOST.includes("tidbcloud.com");
+const wantTLS = (TIDB_ENABLE_SSL ?? "").toString().toLowerCase() === "true" || hostIsTiDB;
 
 // 1) Create MySQL pool
 export const pool = mysql.createPool({
@@ -26,9 +33,10 @@ export const pool = mysql.createPool({
   ssl: wantTLS ? { minVersion: "TLSv1.2", rejectUnauthorized: true } : undefined,
 });
 
+console.log("[DB] host:", DB_HOST, "port:", DB_PORT, "TLS:", wantTLS);
+
 /* Run init.sql (with CREATE/ALTER statements) once at startup. */
 export async function initSchema(sqlFilePath) {
-    const fs = await import("fs");
     const raw = fs.readFileSync(sqlFilePath, "utf8");
     const conn = await pool.getConnection();
     try {
