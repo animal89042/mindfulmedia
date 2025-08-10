@@ -455,18 +455,17 @@ async function startServer() {
   });
 
   const buildPath = resolve(__dirname, '../frontend/build');
-  app.use(express.static(buildPath));
-
-  if (process.env.NODE_ENV === 'production') {
-    app.get(/^\/(?!api).*/, (req, res) => {
-      res.sendFile(join(buildPath, 'index.html'), (err) => {
-        if (err) {
-          console.error("Error serving index.html:", err);
-          res.status(500).send(err);
-        }
-      });
-    });
+  if (process.env.NODE_ENV !== 'production') {
+    app.use(express.static(buildPath));
   }
+  app.get(/^\/(?!api).*/, (req, res) => {
+    res.sendFile(join(buildPath, 'index.html'), (err) => {
+      if (err) {
+        console.error("Error serving index.html:", err);
+        res.status(500).send(err);
+      }
+    });
+  });
 
   // Start listening
   app.listen(PORT, () => {
