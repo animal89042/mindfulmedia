@@ -22,7 +22,7 @@ import { requireSteamID, requireAdmin } from './AuthMiddleware.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const { STEAM_API_KEY, PORT = 5000, STEAM_REDIRECT } = process.env;
+const { STEAM_API_KEY, PORT = 5000, STEAM_REDIRECT, PUBLIC_URL } = process.env;
 
 
 async function startServer() {
@@ -41,7 +41,7 @@ async function startServer() {
   }
 
   // 3) Express setup
-  const BASE_URL = process.env.PUBLIC_URL || `http://localhost${PORT}`;
+  const BASE_URL = PUBLIC_URL || `http://localhost${PORT}`;
   const app = express();
 
   app.set('trust proxy', 1);
