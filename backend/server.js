@@ -41,7 +41,7 @@ async function startServer() {
   }
 
   // 3) Express setup
-  const BASE_URL = process.env.BASE_URL || `http://localhost${PORT}`;
+  const BASE_URL = process.env.PUBLIC_URL || `http://localhost${PORT}`;
   const app = express();
 
   app.set('trust proxy', 1);
