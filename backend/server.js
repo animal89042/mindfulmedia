@@ -48,8 +48,8 @@ async function startServer() {
 
   const allowedOrigins = [
     'http://localhost:3000',
-    //'https://mindfulmedia.vercel.app',
-    ///^https:\/\/mindfulmedia-[^.]+\.vercel\.app$/,
+    'https://mindfulmedia.vercel.app',
+    /^https:\/\/mindfulmedia-[^.]+\.vercel\.app$/,
   ];
 
   app.use(cors({
