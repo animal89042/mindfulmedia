@@ -21,9 +21,8 @@ import { requireSteamID, requireAdmin } from './AuthMiddleware.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-dotenv.config({ path: resolve(__dirname, ".env") });
 
-const { STEAM_API_KEY, PORT = 5000 } = process.env;
+const { STEAM_API_KEY, PORT = 5000, STEAM_REDIRECT } = process.env;
 
 
 async function startServer() {
@@ -42,7 +41,7 @@ async function startServer() {
   }
 
   // 3) Express setup
-  const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
+  const BASE_URL = process.env.BASE_URL || `http://localhost${PORT}`;
   const app = express();
 
   app.set('trust proxy', 1);
@@ -139,7 +138,7 @@ async function startServer() {
               return next(err);
             }
             console.log("✅ Session saved, redirecting");
-            res.redirect(BASE_URL);
+            res.redirect(STEAM_REDIRECT);
           });
         });
       }
