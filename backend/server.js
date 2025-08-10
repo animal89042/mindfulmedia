@@ -454,18 +454,27 @@ async function startServer() {
     }
   });
 
-  const buildPath = resolve(__dirname, '../frontend/build');
-  if (process.env.NODE_ENV !== 'production') {
-    app.use(express.static(buildPath));
-  }
-  app.get(/^\/(?!api).*/, (req, res) => {
-    res.sendFile(join(buildPath, 'index.html'), (err) => {
-      if (err) {
-        console.error("Error serving index.html:", err);
-        res.status(500).send(err);
-      }
+  app.get('/', (req, res) => {
+    res.json({
+      ok: true,
+      service: 'mindfulmedia-backend',
+      env: process.env.NODE_ENV || 'development'
     });
   });
+
+
+  if (process.env.NODE_ENV !== 'production') {
+    const buildPath = resolve(__dirname, '../frontend/build');
+    app.use(express.static(buildPath));
+    app.get(/^\/(?!api).*/, (req, res) => {
+      res.sendFile(join(buildPath, 'index.html'), (err) => {
+        if (err) {
+          console.error("Error serving index.html:", err);
+          res.status(500).send(err);
+        }
+      });
+    });
+  }
 
   // Start listening
   app.listen(PORT, () => {
