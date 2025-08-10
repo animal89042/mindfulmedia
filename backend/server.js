@@ -22,7 +22,7 @@ import { requireSteamID, requireAdmin } from './AuthMiddleware.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const { STEAM_API_KEY, PORT = 5000, VERCEL_URL} = process.env;
+const { STEAM_API_KEY, PORT = 5000, } = process.env;
 
 async function startServer() {
   // 1) Ensure schema (CREATE/ALTER) is applied
@@ -40,7 +40,12 @@ async function startServer() {
   }
 
   // 3) Production or Development check
-  let BASE_URL = process.env.NODE_ENV === "production" ? (process.env.PUBLIC_URL || VERCEL_URL ? `https://${VERCEL_URL}` : null) : `http://localhost:${PORT}`;
+  let BASE_URL;
+  if (process.env.NODE_ENV === 'production') {
+    BASE_URL = process.env.PUBLIC_URL;
+  } else {
+    BASE_URL = `http://localhost:${PORT}`;
+  }
 
   // 4) Express setup
   const app = express();
