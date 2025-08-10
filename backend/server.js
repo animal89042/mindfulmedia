@@ -1,15 +1,15 @@
 // server.js
-import { dirname, resolve } from "path";
+import { dirname, resolve, join } from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import express from "express";
 import cors from "cors";
 import session from "express-session";
 import passport from "passport";
-import mysql from "mysql2/promise";
 import { Strategy as SteamStrategy } from "passport-steam";
 import { getOwnedGames, getGameData, getPlayerSummary } from "./SteamAPI.js";
 import {
+  pool,
   initSchema,
   ensureUser,
   upsertGame,
@@ -18,75 +18,41 @@ import {
   upsertUserProfile,
 } from "./database.js";
 import { requireSteamID, requireAdmin } from './AuthMiddleware.js';
-import path from "path";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 dotenv.config({ path: resolve(__dirname, ".env") });
 
-const {
-  DB_HOST,
-  DB_PORT,
-  DB_USER,
-  DB_PASS,
-  DB_NAME,
-  STEAM_API_KEY,
-  PORT = 5000,
-} = process.env;
+const { STEAM_API_KEY, PORT = 5000 } = process.env;
 
 
 async function startServer() {
   // 1) Ensure schema (CREATE/ALTER) is applied
-  await initSchema(
-      {
-        host: DB_HOST,
-        port: Number(DB_PORT),
-        user: DB_USER,
-        password: DB_PASS,
-        multipleStatements: true,
-      },
-      resolve(__dirname, "init.sql")
-  );
+  await initSchema(resolve(__dirname, "init.sql"));
 
-  // 2) Create MySQL pool
-  const pool = mysql.createPool({
-    host: DB_HOST,
-    port: Number(DB_PORT),
-    user: DB_USER,
-    password: DB_PASS,
-    database: DB_NAME,
-    waitForConnections: true,
-    connectionLimit: 10,
-  });
-
-  // 4) Verify connection
+  // 2) Verify connection
   try {
     const conn = await pool.getConnection();
     await conn.ping();
-    console.log("MySQL pool connected");
+    console.log("DB pool connected");
     conn.release();
   } catch (err) {
-    console.error("MySQL pool failed:", err);
+    console.error("DB pool failed:", err);
     process.exit(1);
   }
 
-  // 5) Express setup
-  const BASE_URL = process.env.PUBLIC_URL;
+  // 3) Express setup
+  const BASE_URL = process.env.BASE_URL;
   const app = express();
 
   app.set('trust proxy', 1);
 
   const allowedOrigins = [
     'http://localhost:3000',
-    'http://127.0.0.1:3000',
     'https://mindfulmedia.vercel.app',
-    'https://mindfulmedia-dm83.vercel.app',
-    'https://mindfulmedia-dm83-git-cookiesurg-brody-michaels-projects.vercel.app',
-    'https://mindfulmedia-dm83-od3hzia0e-brody-michaels-projects.vercel.app',
-    'https://mindfulmedia-dm83-brody-michaels-projects.vercel.app',
     /^https:\/\/mindfulmedia-[^.]+\.vercel\.app$/,
-    /^https:\/\/.*\.loca\.lt$/
   ];
+
   app.use(cors({
     origin: function (origin, callback) {
       console.log("CORS CHECK:", origin); // log every request
@@ -105,7 +71,7 @@ async function startServer() {
   app.use(express.json());
   app.use(
       session({
-        secret: "thisisarandoms3cr3Tstr1nG123!@#",
+        secret: process.env.SESSION_SECRET || "thisisarandoms3cr3Tstr1nG123!@#",
         resave: false,
         saveUninitialized: false,
         cookie: {
@@ -177,8 +143,7 @@ async function startServer() {
               return next(err);
             }
             console.log("✅ Session saved, redirecting");
-            const REDIR_URL = process.env.STEAM_REDIRECT || BASE_URL;
-            res.redirect(REDIR_URL);
+            res.redirect(BASE_URL);
           });
         });
       }
@@ -195,7 +160,7 @@ async function startServer() {
            WHERE steam_id = ?`,
           [steam_id]
       );
-      conn.release;
+      conn.release();
       res.json({
         steam_id,
         display_name: req.session.passport.user.displayName,
@@ -494,11 +459,11 @@ async function startServer() {
     }
   });
 
-  const buildPath = path.resolve(__dirname, '../frontend/build');
+  const buildPath = resolve(__dirname, '../frontend/build');
   app.use(express.static(buildPath));
 
   app.get(/^\/(?!api).*/, (req, res) => {
-    res.sendFile(path.join(buildPath, 'index.html'), (err) => {
+    res.sendFile(join(buildPath, 'index.html'), (err) => {
       if (err) {
         console.error("Error serving index.html:", err);
         res.status(500).send(err);

@@ -10,25 +10,43 @@ const {
   DB_USER,
   DB_PASS,
   DB_NAME,
+  TIDB_ENABLE_SSL,
 } = process.env;
 
-
+// 1) Create MySQL pool
 export const pool = mysql.createPool({
   host: DB_HOST,
-  port: Number(DB_PORT),
+  port: Number(DB_PORT || 4000),
   user: DB_USER,
   password: DB_PASS,
   database: DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
+  ssl:
+      // TiDB Serverless requires TLS; Node’s system CAs are fine
+      String(TIDB_ENABLE_SSL).toLowerCase() === "true"
+          ? { minVersion: "TLSv1.2", rejectUnauthorized: true }
+          : undefined,
 });
 
-/* Run your init.sql (with CREATE/ALTER statements) once at startup. */
-export async function initSchema(config, sqlFilePath) {
-  const connection = await mysql.createConnection(config);
-  const sql = fs.readFileSync(sqlFilePath, "utf8");
-  await connection.query(sql);
-  await connection.end();
+/* Run init.sql (with CREATE/ALTER statements) once at startup. */
+export async function initSchema(sqlFilePath) {
+    const raw = fs.readFileSync(sqlFilePath, "utf8");
+    const conn = await pool.getConnection();
+    try {
+        // optional: ensure utf8mb4
+        await conn.query("SET NAMES utf8mb4");
+        // split into individual statements and run them one at a time
+        const statements = raw
+            .split(/;\s*[\r\n]+/g)
+            .map(s => s.trim())
+            .filter(Boolean);
+        for (const stmt of statements) {
+            await conn.query(stmt);
+        }
+    } finally {
+        conn.release();
+    }
 }
 
 /* Ensure a user row exists. */
