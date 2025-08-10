@@ -45,23 +45,25 @@ async function startServer() {
   const app = express();
 
   app.set('trust proxy', 1);
-
-  const allowedOrigins = [
-    'http://localhost:3000',
-    'https://mindfulmedia.vercel.app',
-    /^https:\/\/mindfulmedia-[^.]+\.vercel\.app$/,
-  ];
+  if (process.env.NODE_ENV !== "production") {
+    const allowedOrigins = [
+      'http://localhost:3000',
+      /^https:\/\/mindfulmedia-[^.]+\.vercel\.app$/,
+    ];
+  }
 
   app.use(cors({
     function (origin, callback) {
       console.log("CORS CHECK:", origin); // log every request
-      if (!origin) return callback(null, true); // allow server-to-server or curl requests
-      const isAllowed = allowedOrigins.some(o =>
-          typeof o === 'string' ? o === origin : o.test(origin)
-      );
-      if (!isAllowed) {
-        console.log("CORS BLOCKED:", origin);
-        return callback(new Error("CORS policy violation"), false);
+      if (process.env.NODE_ENV !== "production") {
+        if (!origin) return callback(null, true); // allow server-to-server or curl requests
+        const isAllowed = allowedOrigins.some(o =>
+            typeof o === 'string' ? o === origin : o.test(origin)
+        );
+        if (!isAllowed) {
+          console.log("CORS BLOCKED:", origin);
+          return callback(new Error("CORS policy violation"), false);
+        }
       }
       return callback(null, true);
     },
@@ -452,16 +454,7 @@ async function startServer() {
     } finally {
       if (conn) conn.release();
     }
-  });
-
-  app.get('/', (req, res) => {
-    res.json({
-      ok: true,
-      service: 'mindfulmedia-backend',
-      env: process.env.NODE_ENV || 'development'
-    });
-  });
-
+  })
 
   if (process.env.NODE_ENV !== 'production') {
     const buildPath = resolve(__dirname, '../frontend/build');
