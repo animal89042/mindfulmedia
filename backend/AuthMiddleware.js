@@ -1,7 +1,6 @@
 import { pool } from './database.js';
 
 export const requireSteamID = (req, res, next) => {
-
     const steam_id = req.session?.passport?.user?.id;
     if (!steam_id) {
         return;
@@ -18,7 +17,6 @@ export async function requireAdmin(req, res, next) {
         [steam_id],
     );
     conn.release();
-
     if (!rows.length || rows[0].role !== 'admin') {
         return res.status(403).json({ error: 'Not Admin' });
     }
