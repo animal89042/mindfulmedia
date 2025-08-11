@@ -21,7 +21,7 @@ import { requireSteamID, requireAdmin } from './AuthMiddleware.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const { STEAM_API_KEY, PORT } = process.env;
+const { STEAM_API_KEY, PORT = process.env.PORT || 8080 } = process.env;
 
 async function startServer() {
   // 1) Ensure schema (CREATE/ALTER) is applied
@@ -53,7 +53,7 @@ async function startServer() {
   app.set('trust proxy', 1);
 
   const allowedOrigins = [
-    'http://localhost:3000',
+    `http://localhost:${PORT}`,
     'https://mindfulmedia.vercel.app',
     /^https:\/\/mindfulmedia-[^.]+\.vercel\.app$/,
   ];
@@ -472,34 +472,37 @@ async function startServer() {
           res.status(500).send(err);
         }
       });
-
-      // Start listening
-      app.listen(PORT, () => {
-        console.log(`Backend Initialized`);
-      });
-
-      //Starting Sign Out
-      app.post('/api/logout', (req, res, next) => {
-        req.logout(err => {
-          if (err) return next(err);
-          req.session.destroy(err2 => {
-            if (err2) return next(err2);
-            res.clearCookie('mm.sid');
-            res.redirect('/');
-          });
-        });
-      });
-
-
-      process.on("SIGINT", async () => {
-        console.log("Closing...");
-        process.exit();
-      });
-
-      startServer().catch((err) => {
-        console.error("Failed to start server:", err);
-        process.exit(1);
-      });
     });
   }
-}
+
+  app.get("/healthz", (req, res) => res.json({ ok: true }));
+
+  // Start listening
+  app.listen(PORT, () => {
+    console.log(`Backend Initialized`);
+  });
+
+      //Starting Sign Out
+  app.post('/api/logout', (req, res, next) => {
+    req.logout(err => {
+      if (err) return next(err);
+      req.session.destroy(err2 => {
+        if (err2) return next(err2);
+        res.clearCookie('mm.sid');
+        res.redirect('/');
+      });
+    });
+  });
+
+
+  process.on("SIGINT", async () => {
+    console.log("Closing...");
+    process.exit();
+  });
+
+  startServer().catch((err) => {
+    console.error("Failed to start server:", err);
+    process.exit(1);
+  });
+};
+
