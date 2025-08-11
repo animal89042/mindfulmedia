@@ -1,16 +1,14 @@
 // server.js
-import { dirname, resolve } from "path";
+import { dirname, resolve, join } from "path";
 import { fileURLToPath } from "url";
-import dotenv from "dotenv";
 import express from "express";
 import cors from "cors";
 import session from "express-session";
 import passport from "passport";
-import localtunnel from "localtunnel";
-import mysql from "mysql2/promise";
 import { Strategy as SteamStrategy } from "passport-steam";
 import { getOwnedGames, getGameData, getPlayerSummary } from "./SteamAPI.js";
 import {
+  pool,
   initSchema,
   ensureUser,
   upsertGame,
@@ -18,115 +16,74 @@ import {
   getUserGames,
   upsertUserProfile,
 } from "./database.js";
-import { requireSteamID } from './AuthMiddleware.js';
-import path from "path";
+import { requireSteamID, requireAdmin } from './AuthMiddleware.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-dotenv.config({ path: resolve(__dirname, ".env") });
 
-const {
-  DB_HOST,
-  DB_PORT,
-  DB_USER,
-  DB_PASS,
-  DB_NAME,
-  STEAM_API_KEY,
-  PORT = 5000,
-} = process.env;
-
+const { STEAM_API_KEY, PORT = 5000, } = process.env;
 
 async function startServer() {
   // 1) Ensure schema (CREATE/ALTER) is applied
-  await initSchema(
-      {
-        host: DB_HOST,
-        port: Number(DB_PORT),
-        user: DB_USER,
-        password: DB_PASS,
-        multipleStatements: true,
-      },
-      resolve(__dirname, "init.sql")
-  );
 
-  // 2) Create MySQL pool
-  const pool = mysql.createPool({
-    host: DB_HOST,
-    port: Number(DB_PORT),
-    user: DB_USER,
-    password: DB_PASS,
-    database: DB_NAME,
-    waitForConnections: true,
-    connectionLimit: 10,
-  });
+  await initSchema(resolve(__dirname, "init.sql"));
 
-  // 3) Expose via localtunnel
-  let BASE_URL;
 
-  if (process.env.USE_LT === "TRUE") {
-    const tunnel = await localtunnel({port: PORT, subdomain: "mindfulmedia"});
-    BASE_URL = tunnel.url;
-    console.log(`Tunnel live at: ${BASE_URL}`);
-  } else {
-    BASE_URL = process.env.PUBLIC_URL;
-    console.log(`Using BASE_URL: ${BASE_URL}`);
-  }
-
-  // 4) Verify connection
+  // 2) Verify connection
   try {
     const conn = await pool.getConnection();
     await conn.ping();
-    console.log("MySQL pool connected");
+    console.log("DB pool connected");
     conn.release();
   } catch (err) {
-    console.error("MySQL pool failed:", err);
+    console.error("DB pool failed:", err);
     process.exit(1);
   }
-  //test deplot=y
-  // 5) Express setup
+
+  // 3) Production or Development check
+  let BASE_URL;
+  if (process.env.NODE_ENV === 'production') {
+    BASE_URL = process.env.PUBLIC_URL;
+  } else {
+    BASE_URL = `http://localhost:${PORT}`;
+  }
+
+  // 4) Express setup
   const app = express();
 
   app.set('trust proxy', 1);
 
   const allowedOrigins = [
     'http://localhost:3000',
-    'https://mindfulmedia.loca.lt',
     'https://mindfulmedia.vercel.app',
-    'https://mindfulmedia-dm83.vercel.app',
-    'https://mindfulmedia-dm83-git-cookiesurg-brody-michaels-projects.vercel.app',
-    'https://mindfulmedia-dm83-od3hzia0e-brody-michaels-projects.vercel.app',
-    'https://mindfulmedia-dm83-brody-michaels-projects.vercel.app',
     /^https:\/\/mindfulmedia-[^.]+\.vercel\.app$/,
-    /^https:\/\/.*\.loca\.lt$/
   ];
+
   app.use(cors({
-    origin: function (origin, callback) {
+    origin(origin, callback) {
       console.log("CORS CHECK:", origin); // log every request
       if (!origin) return callback(null, true); // allow server-to-server or curl requests
-      const isAllowed = allowedOrigins.some(o =>
-          typeof o === 'string' ? o === origin : o.test(origin)
-      );
-      if (!isAllowed) {
-        console.log("CORS BLOCKED:", origin);
-        return callback(new Error("CORS policy violation"), false);
-      }
+      const ok = allowedOrigins.some(o => typeof o === 'string' ? o === origin : o.test(origin));
+      if (!ok) { console.log("CORS BLOCKED:", origin); return callback(new Error("CORS policy violation"), false); }
       return callback(null, true);
     },
     credentials: true, // allow cookies and credentials
   }));
   app.use(express.json());
-  app.use(
-      session({
-        secret: "thisisarandoms3cr3Tstr1nG123!@#",
+
+  app.use(session({
+        name: "mm.sid",
+        secret: process.env.SESSION_SECRET || "mindfulmediaBMG",
         resave: false,
         saveUninitialized: false,
-        cookie: {
-          secure: true,
+    cookie: {
+          maxAge: 7 * 24 * 60 * 60 * 1000,
           httpOnly: true,
-          sameSite: 'none',
-        }
-      })
-  );
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    },
+  }));
+
   app.use(passport.initialize());
   app.use(passport.session());
 
@@ -172,9 +129,9 @@ async function startServer() {
               const conn = await pool.getConnection();
               await conn.query(
                   `INSERT
-                  IGNORE INTO users (steam_id, persona_name, avatar, profile_url)
-             VALUES (?, ?, ?, ?)`,
-                  [steam_id, profile.persona_name, profile.avatar, profile.profile_url]
+                  IGNORE INTO users (steam_id, persona_name, avatar, profile_url, role)
+             VALUES (?, ?, ?, ?, ?)`,
+                  [steam_id, profile.persona_name, profile.avatar, profile.profile_url, 'user']
               );
               await upsertUserProfile(conn, steam_id, profile);
               conn.release();
@@ -182,28 +139,56 @@ async function startServer() {
           } catch (err) {
             console.error("Could not fetch/store Steam profile:", err);
           }
-
-          req.session.save((err) => {
-            if (err) {
-              console.error("Session save error:", err);
-              return next(err);
-            }
-            console.log("✅ Session saved, redirecting");
-            const REDIR_URL = process.env.USE_LT === "TRUE" ? BASE_URL : process.env.STEAM_REDIRECT; //oo fancy I like
-            res.redirect(REDIR_URL);
-          });
+          console.log("✅ Session saved, redirecting");
+          const REDIRECT_URL = process.env.NODE_ENV !== "production" ? BASE_URL : process.env.STEAM_REDIRECT;
+          res.redirect(REDIRECT_URL);
         });
       }
   );
   // --- API: Verify Login ---
-  app.get('/api/me', requireSteamID, (req, res) => {
-    const user = req.session.passport.user;
-    res.json({
-      steam_id: user.id,
-      display_name: user.displayName,
-      avatar: user.photos?.[0]?.value //only grab avatar url if it exists
-    });
+  app.get('/api/me', requireSteamID, async (req, res) => {
+    const steam_id = req.steam_id;
+
+    try {
+      const conn = await pool.getConnection();
+      const [[userRow]] = await conn.query(
+          `SELECT role
+           FROM users
+           WHERE steam_id = ?`,
+          [steam_id]
+      );
+      conn.release();
+      res.json({
+        steam_id,
+        display_name: req.session.passport.user.displayName,
+        avatar: req.session.passport.user.photos?.[0]?.value, //only grab avatar url if it exists
+        role: userRow?.role || 'user'
+      });
+    } catch (err) {
+      console.error("Could not fetch user profile:", err);
+      res.status(500).json({error: "Unable to fetch user role"})
+    }
   });
+  // --- Admin: list all users ---
+  app.get(
+      "/api/admin/users",
+      requireSteamID,
+      requireAdmin,
+      async (req, res) => {
+        try {
+          const [rows] = await pool.query(
+              `SELECT steam_id     AS id,
+                      persona_name AS name,
+                      role
+               FROM users`
+          );
+          res.json(rows);
+        } catch (err) {
+          console.error('Error fetching users for admin:', err);
+          res.status(500).json({error: 'Internal server error'});
+        }
+      }
+  );
   // --- API: Player Summary ---
   app.get("/api/playersummary", requireSteamID, async (req, res) => {
     const steam_id = req.steam_id;
@@ -437,7 +422,6 @@ async function startServer() {
     const steam_id = req.steam_id;
     const entryId = req.params.id;
     const {entry, title} = req.body;
-
     if (!entry) {
       return res.status(400).json({error: "Entry content is required"});
     }
@@ -463,7 +447,6 @@ async function startServer() {
            WHERE id = ?`,
           [entry, title || "", entryId]
       );
-
       const [[updatedEntry]] = await conn.query(
           `SELECT id, appid, entry, title AS journal_title, created_at, edited_at
            FROM journals
@@ -478,59 +461,41 @@ async function startServer() {
     } finally {
       if (conn) conn.release();
     }
-  });
+  })
 
-  // --- Logout Endpoint ---
-  app.post("/api/auth/logout", (req, res) => {
-    req.logout(err => {
-      if (err) {
-        console.error("Logout error:", err);
-        return res.status(500).json({error: "Failed to log out"});
-      }
-
-      req.session.destroy((err) => {
-        if (err) {
-          console.error("Session destroy error:", err);
-          return res.status(500).json({error: "Failed to destroy session"});
-        }
-
-        res.clearCookie("connect.sid", {
-          secure: true,
-          httpOnly: true,
-          sameSite: "none",
-        });
-
-        return res.json({success: true, message: "Logged out successfully"});
-      });
-    });
-  });
-
-  if (process.env.USE_LT === "TRUE") {
-    const buildPath = path.resolve(__dirname, "../frontend/build");
+  if (process.env.NODE_ENV !== 'production') {
+    const buildPath = resolve(__dirname, '../frontend/build');
     app.use(express.static(buildPath));
-
     app.get(/^\/(?!api).*/, (req, res) => {
-      res.sendFile(path.join(buildPath, "index.html"), (err) => {
+      res.sendFile(join(buildPath, 'index.html'), (err) => {
         if (err) {
           console.error("Error serving index.html:", err);
           res.status(500).send(err);
         }
-      });
-    });
-
-    process.on("SIGINT", async () => {
-      console.log("Closing tunnel...");
-      await tunnel.close();
-      process.exit();
-    });
-  }
+  });
 
   // Start listening
   app.listen(PORT, () => {
-    console.log(`Backend listening on http://localhost:${PORT}`);
-    console.log(`Steam login endpoint: ${BASE_URL}/api/auth/steam/login`);
+    console.log(`Backend Initialized`);
   });
 
+  //Starting Sign Out
+  app.post('/api/logout', (req, res, next) => {
+    req.logout(err => {
+      if (err) return next(err);
+      req.session.destroy(err2 => {
+        if (err2) return next(err2);
+        res.clearCookie('mm.sid');
+        res.redirect('/');
+      });
+    });
+  });
+
+
+  process.on("SIGINT", async () => {
+    console.log("Closing...");
+    process.exit();
+  });
 }
 
 startServer().catch((err) => {

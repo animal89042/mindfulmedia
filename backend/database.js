@@ -1,13 +1,58 @@
 // database.js
-import fs from "fs";
 import mysql from "mysql2/promise";
+import dotenv from "dotenv";
+import { dirname, resolve } from "path";
+import { fileURLToPath } from "url";
+import fs from "fs";
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+// Always load the backend/.env, even if CWD is different
+dotenv.config({ path: resolve(__dirname, ".env") });
 
-/* Run your init.sql (with CREATE/ALTER statements) once at startup. */
-export async function initSchema(config, sqlFilePath) {
-  const connection = await mysql.createConnection(config);
-  const sql = fs.readFileSync(sqlFilePath, "utf8");
-  await connection.query(sql);
-  await connection.end();
+const {
+  DB_HOST,
+  DB_PORT,
+  DB_USER,
+  DB_PASS,
+  DB_NAME,
+  TIDB_ENABLE_SSL,
+} = process.env;
+
+const hostIsTiDB = !!DB_HOST && DB_HOST.includes("tidbcloud.com");
+const wantTLS = (TIDB_ENABLE_SSL ?? "").toString().toLowerCase() === "true" || hostIsTiDB;
+
+// 1) Create MySQL pool
+export const pool = mysql.createPool({
+  host: DB_HOST,
+  port: Number(DB_PORT || 4000),
+  user: DB_USER,
+  password: DB_PASS,
+  database: DB_NAME,
+  waitForConnections: true,
+  connectionLimit: 5,
+  ssl: wantTLS ? { minVersion: "TLSv1.2", rejectUnauthorized: true } : undefined,
+});
+
+console.log("[DB] host:", DB_HOST, "port:", DB_PORT, "TLS:", wantTLS);
+
+/* Run init.sql (with CREATE/ALTER statements) once at startup. */
+export async function initSchema(sqlFilePath) {
+    const raw = fs.readFileSync(sqlFilePath, "utf8");
+    const conn = await pool.getConnection();
+    try {
+        // optional: ensure utf8mb4
+        await conn.query("SET NAMES utf8mb4");
+        // split into individual statements and run them one at a time
+        const statements = raw
+            .split(/;\s*[\r\n]+/g)
+            .map(s => s.trim())
+            .filter(Boolean);
+        for (const stmt of statements) {
+            await conn.query(stmt);
+        }
+    } finally {
+        conn.release();
+    }
 }
 
 /* Ensure a user row exists. */

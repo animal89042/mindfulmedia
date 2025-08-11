@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://victorious-smile-production.up.railway.app/api/$1"
+    }
+  ]
+}
