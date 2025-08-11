@@ -53,7 +53,7 @@ async function startServer() {
   app.set('trust proxy', 1);
 
   const allowedOrigins = [
-    `http://localhost:${PORT}`,
+    'http://localhost:3000',
     'https://mindfulmedia.vercel.app',
     /^https:\/\/mindfulmedia-[^.]+\.vercel\.app$/,
   ];
@@ -63,7 +63,10 @@ async function startServer() {
       console.log("CORS CHECK:", origin); // log every request
       if (!origin) return callback(null, true); // allow server-to-server or curl requests
       const ok = allowedOrigins.some(o => typeof o === 'string' ? o === origin : o.test(origin));
-      if (!ok) { console.log("CORS BLOCKED:", origin); return callback(new Error("CORS policy violation"), false); }
+      if (!ok) {
+        console.log("CORS BLOCKED:", origin);
+        return callback(new Error("CORS policy violation"), false);
+      }
       return callback(null, true);
     },
     credentials: true, // allow cookies and credentials
@@ -71,15 +74,16 @@ async function startServer() {
   app.use(express.json());
 
   app.use(session({
-        name: "mm.sid",
-        secret: process.env.SESSION_SECRET || "mindfulmediaBMG",
-        resave: false,
-        saveUninitialized: false,
+    name: "mm.sid",
+    secret: process.env.SESSION_SECRET || "mindfulmediaBMG",
+    resave: false,
+    saveUninitialized: false,
+    proxy: true,
     cookie: {
-          maxAge: 7 * 24 * 60 * 60 * 1000,
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     },
   }));
 
@@ -440,8 +444,8 @@ async function startServer() {
       }
       await conn.query(
           `UPDATE journals
-           SET entry = ?,
-               title = ?,
+           SET entry     = ?,
+               title     = ?,
                edited_at = NOW()
            WHERE id = ?`,
           [entry, title || "", entryId]
@@ -475,14 +479,14 @@ async function startServer() {
     });
   }
 
-  app.get("/healthz", (req, res) => res.json({ ok: true }));
+  app.get("/healthz", (req, res) => res.json({ok: true}));
 
   // Start listening
   app.listen(PORT, () => {
     console.log(`Backend Initialized`);
   });
 
-      //Starting Sign Out
+  //Starting Sign Out
   app.post('/api/logout', (req, res, next) => {
     req.logout(err => {
       if (err) return next(err);
@@ -499,10 +503,11 @@ async function startServer() {
     console.log("Closing...");
     process.exit();
   });
+}
 
-  startServer().catch((err) => {
-    console.error("Failed to start server:", err);
-    process.exit(1);
-  });
-};
+startServer().catch((err) => {
+  console.error("Failed to start server:", err);
+  process.exit(1);
+});
+
 
