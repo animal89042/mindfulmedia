@@ -28,7 +28,6 @@ async function startServer() {
 
   await initSchema(resolve(__dirname, "init.sql"));
 
-
   // 2) Verify connection
   try {
     const conn = await pool.getConnection();
@@ -472,33 +471,35 @@ async function startServer() {
           console.error("Error serving index.html:", err);
           res.status(500).send(err);
         }
-  });
+      });
 
-  // Start listening
-  app.listen(PORT, () => {
-    console.log(`Backend Initialized`);
-  });
+      // Start listening
+      app.listen(PORT, () => {
+        console.log(`Backend Initialized`);
+      });
 
-  //Starting Sign Out
-  app.post('/api/logout', (req, res, next) => {
-    req.logout(err => {
-      if (err) return next(err);
-      req.session.destroy(err2 => {
-        if (err2) return next(err2);
-        res.clearCookie('mm.sid');
-        res.redirect('/');
+      //Starting Sign Out
+      app.post('/api/logout', (req, res, next) => {
+        req.logout(err => {
+          if (err) return next(err);
+          req.session.destroy(err2 => {
+            if (err2) return next(err2);
+            res.clearCookie('mm.sid');
+            res.redirect('/');
+          });
+        });
+      });
+
+
+      process.on("SIGINT", async () => {
+        console.log("Closing...");
+        process.exit();
+      });
+
+      startServer().catch((err) => {
+        console.error("Failed to start server:", err);
+        process.exit(1);
       });
     });
-  });
-
-
-  process.on("SIGINT", async () => {
-    console.log("Closing...");
-    process.exit();
-  });
+  }
 }
-
-startServer().catch((err) => {
-  console.error("Failed to start server:", err);
-  process.exit(1);
-});
