@@ -21,7 +21,7 @@ import { requireSteamID, requireAdmin } from './AuthMiddleware.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const { STEAM_API_KEY, PORT } = process.env;
+const { STEAM_API_KEY, PORT= 5000 } = process.env;
 
 async function startServer() {
   // 1) Ensure schema (CREATE/ALTER) is applied
@@ -43,7 +43,7 @@ async function startServer() {
   if (process.env.NODE_ENV === 'production') {
     BASE_URL = process.env.PUBLIC_URL;
   } else {
-    BASE_URL = `http://localhost:${PORT}`;
+    BASE_URL = `http://localhost:3000`;
   }
 
   // 4) Express setup
