@@ -21,11 +21,10 @@ import { requireSteamID, requireAdmin } from './AuthMiddleware.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const { STEAM_API_KEY, PORT = process.env.PORT || 8080 } = process.env;
+const { STEAM_API_KEY, PORT } = process.env;
 
 async function startServer() {
   // 1) Ensure schema (CREATE/ALTER) is applied
-
   await initSchema(resolve(__dirname, "init.sql"));
 
   // 2) Verify connection
@@ -483,7 +482,7 @@ async function startServer() {
 
   // Start listening
   app.listen(PORT, () => {
-    console.log(`Backend Initialized`);
+    console.log(`Backend listening on :${PORT}`);
   });
 
   //Starting Sign Out
