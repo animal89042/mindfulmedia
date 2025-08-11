@@ -127,3 +127,25 @@
         justify-content: center;
     } 
 }
+
+.user-menu-vertical {
+    display: flex;
+    flex-direction: column; /* Stack avatar and button vertically */
+    align-items: center; /* Center horizontally */
+    gap: 8px; /* Space between avatar and sign out button */
+}
+
+.sign-out {
+    background: var(--nav-border);
+    color: var(--text-color);
+    font-size: 0.9rem;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.sign-out:hover {
+    background-color: var(--nav-border-hover, #666);
+}

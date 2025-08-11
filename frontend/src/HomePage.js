@@ -2,7 +2,7 @@ import React from "react";
 import GameCapsuleList from "./GameCapsuleList";
 
 const HomePage = ({ user, checked, searchQuery }) => {
-
+  
     // Not logged-in
     if (!user || !checked) {
         return (

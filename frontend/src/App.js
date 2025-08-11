@@ -89,6 +89,8 @@ function App() {
               }
           />
 
+          <Route path="/journal" element={<Journal searchTerm={searchQuery} />} />
+
           {/* Catch-all */}
           <Route
               path="*"
