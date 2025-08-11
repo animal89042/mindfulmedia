@@ -21,7 +21,7 @@ import { requireSteamID, requireAdmin } from './AuthMiddleware.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const { STEAM_API_KEY, PORT = 5000, } = process.env;
+const { STEAM_API_KEY, PORT } = process.env;
 
 async function startServer() {
   // 1) Ensure schema (CREATE/ALTER) is applied
