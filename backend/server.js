@@ -3,7 +3,6 @@ import { dirname, resolve, join } from "path";
 import { fileURLToPath } from "url";
 import express from "express";
 import cors from "cors";
-import session from "express-session";
 import passport from "passport";
 import mysqlSessionPkg from 'express-mysql-session';
 import { Strategy as SteamStrategy } from "passport-steam";
@@ -24,8 +23,7 @@ const __dirname = dirname(__filename);
 
 const MySQLStore = (mysqlSessionPkg.default || mysqlSessionPkg)(session);
 
-const { STEAM_API_KEY } = process.env;
-const port = Number(process.env.PORT || 8080);
+const { STEAM_API_KEY, PORT } = process.env;
 
 async function startServer() {
   // 1) Ensure schema (CREATE/ALTER) is applied
@@ -51,14 +49,6 @@ async function startServer() {
 
   app.set('trust proxy', 1);
 
-
-  app.get("/healthz", (req, res) => res.json({ ok: true }));
-  // --- API: Test Endpoint ---
-  app.get("/api/test", (req, res) => {
-    res.json({message: "Tunnel + Steam OAuth are working!"});
-  });
-
-
   const allowedOrigins = [
     'http://localhost:3000',
     'https://mindfulmedia.vercel.app',
@@ -80,35 +70,49 @@ async function startServer() {
   }));
   app.use(express.json());
 
-  const useMemory = process.env.SESSION_STORE === "memory";
+  // ---- Sessions (TiDB via pooled MySQLStore) ----
+  import session from "express-session";
+  import mysqlSessionPkg from "express-mysql-session";
+  const MySQLStore = (mysqlSessionPkg.default || mysqlSessionPkg)(session);
 
-  let sessionStore = undefined;
-  if (!useMemory) {
-    sessionStore = new MySQLStore(
-        {
-          createDatabaseTable: true,
-          clearExpired: true,
-          checkExpirationInterval: 1000 * 60 * 15,   // 15 min
-          expiration: 1000 * 60 * 60 * 24 * 7        // 7 days
+// build the store ONCE, reusing the shared pool from database.js
+  const sessionStore = new MySQLStore(
+      {
+        createDatabaseTable: true,                 // creates `sessions` table if not exists
+        clearExpired: true,
+        checkExpirationInterval: 1000 * 60 * 15,   // clean every 15 min
+        expiration: 1000 * 60 * 60 * 24 * 7,       // 7 days
+        schema: {
+          tableName: "sessions",
+          columnNames: {
+            session_id: "session_id",
+            expires: "expires",
+            data: "data",
+          },
         },
-        pool
-    );
-  }
+      },
+      pool
+  );
+
+// Surface store errors (helps catch DB issues fast)
+  sessionStore.on?.("error", (err) => {
+    console.error("[session-store] error:", err);
+  });
 
   app.use(session({
     name: "mm.sid",
     secret: process.env.SESSION_SECRET || "mindfulmediaBMG",
     resave: false,
     saveUninitialized: false,
-    proxy: true,
-    store: sessionStore, // undefined = MemoryStore (dev/test only)
-    unset: 'destroy',
-    rolling: true,
+    proxy: true,                     // trust Railway proxy (you already call app.set('trust proxy', 1))
+    store: sessionStore,             // << TiDB store
+    unset: "destroy",
+    rolling: true,                   // refresh cookie maxAge on activity
     cookie: {
-      maxAge: 7 * 24 * 60 * 60 * 1000,
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
     },
   }));
 
@@ -325,6 +329,11 @@ async function startServer() {
     }
   });
 
+  // --- API: Test Endpoint ---
+  app.get("/api/test", (req, res) => {
+    res.json({message: "Tunnel + Steam OAuth are working!"});
+  });
+
   //  ─── Journal: List entries ───────────────────────────────────────────
   app.get("/api/journals", requireSteamID, async (req, res) => {
     const {appid} = req.query;
@@ -500,8 +509,8 @@ async function startServer() {
   }
 
   // Start listening
-  app.listen(port, "0.0.0.0", () => {
-    console.log(`Backend listening on :${port}`);
+  app.listen(PORT, () => {
+    console.log(`Backend listening on :${PORT}`);
   });
 
   //Starting Sign Out
