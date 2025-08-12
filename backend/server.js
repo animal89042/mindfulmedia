@@ -34,6 +34,7 @@ async function startServer() {
   try {
     const conn = await pool.getConnection();
     await conn.ping();
+    await pool.query("SELECT 1");
     console.log("DB pool connected");
     conn.release();
   } catch (err) {
@@ -42,7 +43,6 @@ async function startServer() {
   }
 
   // 3) Production or Development check
-
   const BASE_URL = process.env.NODE_ENV === "production" ? process.env.PUBLIC_URL : 'http://localhost:3000';
 
   // 4) Express setup
@@ -71,15 +71,20 @@ async function startServer() {
   }));
   app.use(express.json());
 
-  const sessionStore = new MySQLStore(
-      {
-        createDatabaseTable: true,
-        clearExpired: true,
-        checkExpirationInterval: 1000 * 60 * 15,   // 15 min
-        expiration: 1000 * 60 * 60 * 24 * 7        // 7 days
-      },
-      pool
-  );
+  const useMemory = process.env.SESSION_STORE === "memory";
+
+  let sessionStore = undefined;
+  if (!useMemory) {
+    sessionStore = new MySQLStore(
+        {
+          createDatabaseTable: true,
+          clearExpired: true,
+          checkExpirationInterval: 1000 * 60 * 15,   // 15 min
+          expiration: 1000 * 60 * 60 * 24 * 7        // 7 days
+        },
+        pool
+    );
+  }
 
   app.use(session({
     name: "mm.sid",
@@ -87,7 +92,7 @@ async function startServer() {
     resave: false,
     saveUninitialized: false,
     proxy: true,
-    store: sessionStore,
+    store: sessionStore, // undefined = MemoryStore (dev/test only)
     unset: 'destroy',
     rolling: true,
     cookie: {
