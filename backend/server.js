@@ -5,7 +5,7 @@ import express from "express";
 import cors from "cors";
 import session from "express-session";
 import passport from "passport";
-import MySQLStoreFactory from 'express-mysql-session';
+import mysqlSessionPkg from 'express-mysql-session';
 import { Strategy as SteamStrategy } from "passport-steam";
 import { getOwnedGames, getGameData, getPlayerSummary } from "./SteamAPI.js";
 import {
@@ -21,7 +21,9 @@ import { requireSteamID, requireAdmin } from './AuthMiddleware.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const MySQLStore = MySQLStoreFactory(session);
+
+const MySQLStore = (mysqlSessionPkg.default || mysqlSessionPkg)(session);
+
 const { STEAM_API_KEY, PORT } = process.env;
 
 async function startServer() {
@@ -68,8 +70,6 @@ async function startServer() {
     credentials: true, // allow cookies and credentials
   }));
   app.use(express.json());
-
-  const MySQLStore = MySQLStoreFactory(session);
 
   const sessionStore = new MySQLStore(
       {
