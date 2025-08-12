@@ -70,12 +70,7 @@ async function startServer() {
   }));
   app.use(express.json());
 
-  // ---- Sessions (TiDB via pooled MySQLStore) ----
-  import session from "express-session";
-  import mysqlSessionPkg from "express-mysql-session";
-  const MySQLStore = (mysqlSessionPkg.default || mysqlSessionPkg)(session);
-
-// build the store ONCE, reusing the shared pool from database.js
+// ---- Sessions (TiDB via pooled MySQLStore) ----
   const sessionStore = new MySQLStore(
       {
         createDatabaseTable: true,                 // creates `sessions` table if not exists
