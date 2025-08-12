@@ -2,6 +2,7 @@
 import { dirname, resolve, join } from "path";
 import { fileURLToPath } from "url";
 import express from "express";
+import session from "express-session";
 import cors from "cors";
 import passport from "passport";
 import mysqlSessionPkg from 'express-mysql-session';
