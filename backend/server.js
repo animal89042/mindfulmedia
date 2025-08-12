@@ -1,4 +1,3 @@
-// server.js
 import { dirname, resolve, join } from "path";
 import { fileURLToPath } from "url";
 import express from "express";
@@ -16,16 +15,15 @@ import {
   getUserGames,
   upsertUserProfile,
 } from "./database.js";
-import { requireSteamID, requireAdmin } from './AuthMiddleware.js';
+import { requireSteamID, requireAdmin } from "./AuthMiddleware.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const { STEAM_API_KEY, PORT = 5000, } = process.env;
+const { STEAM_API_KEY, PORT = 5000 } = process.env;
 
 async function startServer() {
   // 1) Ensure schema (CREATE/ALTER) is applied
-
   await initSchema(resolve(__dirname, "init.sql"));
 
   // 2) Verify connection
@@ -41,7 +39,7 @@ async function startServer() {
 
   // 3) Production or Development check
   let BASE_URL;
-  if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === "production") {
     BASE_URL = process.env.PUBLIC_URL;
   } else {
     BASE_URL = `http://localhost:${PORT}`;
@@ -50,38 +48,47 @@ async function startServer() {
   // 4) Express setup
   const app = express();
 
-  app.set('trust proxy', 1);
+  app.set("trust proxy", 1);
 
   const allowedOrigins = [
-    'http://localhost:3000',
-    'https://mindfulmedia.vercel.app',
+    "http://localhost:3000",
+    "https://mindfulmedia.vercel.app",
     /^https:\/\/mindfulmedia-[^.]+\.vercel\.app$/,
   ];
 
-  app.use(cors({
-    origin(origin, callback) {
-      console.log("CORS CHECK:", origin); // log every request
-      if (!origin) return callback(null, true); // allow server-to-server or curl requests
-      const ok = allowedOrigins.some(o => typeof o === 'string' ? o === origin : o.test(origin));
-      if (!ok) { console.log("CORS BLOCKED:", origin); return callback(new Error("CORS policy violation"), false); }
-      return callback(null, true);
-    },
-    credentials: true, // allow cookies and credentials
-  }));
+  app.use(
+      cors({
+        origin(origin, callback) {
+          console.log("CORS CHECK:", origin); // log every request
+          if (!origin) return callback(null, true); // allow server-to-server or curl requests
+          const ok = allowedOrigins.some((o) =>
+              typeof o === "string" ? o === origin : o.test(origin)
+          );
+          if (!ok) {
+            console.log("CORS BLOCKED:", origin);
+            return callback(new Error("CORS policy violation"), false);
+          }
+          return callback(null, true);
+        },
+        credentials: true, // allow cookies and credentials
+      })
+  );
   app.use(express.json());
 
-  app.use(session({
+  app.use(
+      session({
         name: "mm.sid",
         secret: process.env.SESSION_SECRET || "mindfulmediaBMG",
         resave: false,
         saveUninitialized: false,
-    cookie: {
+        cookie: {
           maxAge: 7 * 24 * 60 * 60 * 1000,
           httpOnly: true,
           secure: process.env.NODE_ENV === "production",
           sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    },
-  }));
+        },
+      })
+  );
 
   app.use(passport.initialize());
   app.use(passport.session());
@@ -103,7 +110,7 @@ async function startServer() {
   app.get("/api/auth/steam/login", passport.authenticate("steam"));
   app.get(
       "/api/auth/steam/return",
-      passport.authenticate("steam", {failureRedirect: "/"}),
+      passport.authenticate("steam", { failureRedirect: "/" }),
       (req, res, next) => {
         const steam_id = req.user?.id;
         if (!steam_id) return res.redirect("/login/error");
@@ -127,10 +134,9 @@ async function startServer() {
             if (profile) {
               const conn = await pool.getConnection();
               await conn.query(
-                  `INSERT
-                  IGNORE INTO users (steam_id, persona_name, avatar, profile_url, role)
-             VALUES (?, ?, ?, ?, ?)`,
-                  [steam_id, profile.persona_name, profile.avatar, profile.profile_url, 'user']
+                  `INSERT IGNORE INTO users (steam_id, persona_name, avatar, profile_url, role)
+               VALUES (?, ?, ?, ?, ?)`,
+                  [steam_id, profile.persona_name, profile.avatar, profile.profile_url, "user"]
               );
               await upsertUserProfile(conn, steam_id, profile);
               conn.release();
@@ -139,55 +145,49 @@ async function startServer() {
             console.error("Could not fetch/store Steam profile:", err);
           }
           console.log("✅ Session saved, redirecting");
-          const REDIRECT_URL = process.env.NODE_ENV !== "production" ? BASE_URL : process.env.STEAM_REDIRECT;
+          const REDIRECT_URL =
+              process.env.NODE_ENV !== "production" ? BASE_URL : process.env.STEAM_REDIRECT;
           res.redirect(REDIRECT_URL);
         });
       }
   );
+
   // --- API: Verify Login ---
-  app.get('/api/me', requireSteamID, async (req, res) => {
+  app.get("/api/me", requireSteamID, async (req, res) => {
     const steam_id = req.steam_id;
 
     try {
       const conn = await pool.getConnection();
       const [[userRow]] = await conn.query(
-          `SELECT role
-           FROM users
-           WHERE steam_id = ?`,
+          `SELECT role FROM users WHERE steam_id = ?`,
           [steam_id]
       );
       conn.release();
       res.json({
         steam_id,
         display_name: req.session.passport.user.displayName,
-        avatar: req.session.passport.user.photos?.[0]?.value, //only grab avatar url if it exists
-        role: userRow?.role || 'user'
+        avatar: req.session.passport.user.photos?.[0]?.value,
+        role: userRow?.role || "user",
       });
     } catch (err) {
       console.error("Could not fetch user profile:", err);
-      res.status(500).json({error: "Unable to fetch user role"})
+      res.status(500).json({ error: "Unable to fetch user role" });
     }
   });
+
   // --- Admin: list all users ---
-  app.get(
-      "/api/admin/users",
-      requireSteamID,
-      requireAdmin,
-      async (req, res) => {
-        try {
-          const [rows] = await pool.query(
-              `SELECT steam_id     AS id,
-                      persona_name AS name,
-                      role
-               FROM users`
-          );
-          res.json(rows);
-        } catch (err) {
-          console.error('Error fetching users for admin:', err);
-          res.status(500).json({error: 'Internal server error'});
-        }
-      }
-  );
+  app.get("/api/admin/users", requireSteamID, requireAdmin, async (req, res) => {
+    try {
+      const [rows] = await pool.query(
+          `SELECT steam_id AS id, persona_name AS name, role FROM users`
+      );
+      res.json(rows);
+    } catch (err) {
+      console.error("Error fetching users for admin:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   // --- API: Player Summary ---
   app.get("/api/playersummary", requireSteamID, async (req, res) => {
     const steam_id = req.steam_id;
@@ -195,9 +195,7 @@ async function startServer() {
     try {
       conn = await pool.getConnection();
       const [[userRow]] = await conn.query(
-          ` SELECT display_name, persona_name, avatar, profile_url
-            FROM users
-            WHERE steam_id = ?`,
+          `SELECT display_name, persona_name, avatar, profile_url FROM users WHERE steam_id = ?`,
           [steam_id]
       );
 
@@ -217,7 +215,7 @@ async function startServer() {
       conn.release();
 
       if (!profile) {
-        return res.status(404).json({error: "User not found"});
+        return res.status(404).json({ error: "User not found" });
       }
       res.json({
         personaName: profile.persona_name,
@@ -226,11 +224,9 @@ async function startServer() {
         avatarFound: Boolean(profile.avatar),
       });
     } catch (err) {
-      if (conn) {
-        conn.release();
-      }
+      if (conn) conn.release();
       console.error("Error fetching player summary:", err);
-      res.status(500).json({error: "Failed to fetch player summary"});
+      res.status(500).json({ error: "Failed to fetch player summary" });
     }
   });
 
@@ -245,16 +241,13 @@ async function startServer() {
 
       await ensureUser(conn, steam_id, null); // simplified ensureUser
 
-      for (const {appid} of owned) {
+      for (const { appid } of owned) {
         if (!appid) continue;
 
         // check cache
-        const [[existing]] = await conn.query(
-            ` SELECT title
-              FROM games
-              WHERE appid = ?`,
-            [appid]
-        );
+        const [[existing]] = await conn.query(`SELECT title FROM games WHERE appid = ?`, [
+          appid,
+        ]);
         if (existing && existing.title && existing.title !== "Unknown") {
           await linkUserGame(conn, steam_id, appid);
           continue;
@@ -275,12 +268,11 @@ async function startServer() {
       res.json(rows);
     } catch (err) {
       if (conn) {
-        await conn.rollback().catch(() => {
-        });
+        await conn.rollback().catch(() => {});
         conn.release();
       }
       console.error("Error in /api/games:", err);
-      res.status(500).json({error: "Failed to fetch games"});
+      res.status(500).json({ error: "Failed to fetch games" });
     }
   });
 
@@ -288,22 +280,22 @@ async function startServer() {
   app.get("/api/game/:id", requireSteamID, async (req, res) => {
     try {
       const game = await getGameData(req.params.id);
-      if (!game) return res.status(404).json({error: "Game not found"});
+      if (!game) return res.status(404).json({ error: "Game not found" });
       res.json(game);
     } catch (err) {
       console.error("Error in /api/game/:id:", err);
-      res.status(500).json({error: "Internal server error"});
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
   // --- API: Test Endpoint ---
   app.get("/api/test", (req, res) => {
-    res.json({message: "Tunnel + Steam OAuth are working!"});
+    res.json({ message: "Tunnel + Steam OAuth are working!" });
   });
 
-  //  ─── Journal: List entries ───────────────────────────────────────────
+  // ─── Journal: List entries ───────────────────────────────────────────
   app.get("/api/journals", requireSteamID, async (req, res) => {
-    const {appid} = req.query;
+    const { appid } = req.query;
     const steam_id = req.steam_id;
     let conn;
     try {
@@ -342,25 +334,23 @@ async function startServer() {
         );
       }
 
-      console.log(
-          `Fetched ${rows.length} journal entries${appid ? ` for ${appid}` : ""}`
-      );
+      console.log(`Fetched ${rows.length} journal entries${appid ? ` for ${appid}` : ""}`);
       res.json(rows);
     } catch (err) {
       console.error("Error fetching journal entries:", err);
-      res.status(500).json({error: "Failed to fetch journal entries"});
+      res.status(500).json({ error: "Failed to fetch journal entries" });
     } finally {
       if (conn) conn.release();
     }
   });
 
-  //  ─── Journal: Create a new entry ────────────────────────────────────
+  // ─── Journal: Create a new entry ────────────────────────────────────
   app.post("/api/journals", requireSteamID, async (req, res) => {
-    const {appid, entry, title} = req.body;
+    const { appid, entry, title } = req.body;
     const steam_id = req.steam_id;
 
     if (!appid || !entry) {
-      return res.status(400).json({error: "Both appid and entry are required"});
+      return res.status(400).json({ error: "Both appid and entry are required" });
     }
 
     let conn;
@@ -380,13 +370,13 @@ async function startServer() {
       res.json(newEntry);
     } catch (err) {
       console.error("Error saving journal entry:", err);
-      res.status(500).json({error: "Failed to save journal entry"});
+      res.status(500).json({ error: "Failed to save journal entry" });
     } finally {
       if (conn) conn.release();
     }
   });
 
-  //  ─── Journal: Delete a entry ────────────────────────────────────
+  // ─── Journal: Delete an entry ───────────────────────────────────────
   app.delete("/api/journals/:id", requireSteamID, async (req, res) => {
     const steam_id = req.steam_id;
     const entryId = req.params.id;
@@ -395,111 +385,100 @@ async function startServer() {
       conn = await pool.getConnection();
       // Make sure the entry belongs to this user before deleting
       const [[entry]] = await conn.query(
-          `SELECT id
-           FROM journals
-           WHERE id = ?
-             AND steam_id = ?`,
+          `SELECT id FROM journals WHERE id = ? AND steam_id = ?`,
           [entryId, steam_id]
       );
       if (!entry) {
-        return res.status(404).json({error: "Entry not found or access denied"});
+        return res.status(404).json({ error: "Entry not found or access denied" });
       }
-      await conn.query(`DELETE
-                        FROM journals
-                        WHERE id = ?`, [entryId]);
-      res.json({success: true});
+      await conn.query(`DELETE FROM journals WHERE id = ?`, [entryId]);
+      res.json({ success: true });
     } catch (err) {
       console.error("Error deleting journal entry:", err);
-      res.status(500).json({error: "Failed to delete journal entry"});
+      res.status(500).json({ error: "Failed to delete journal entry" });
     } finally {
       if (conn) conn.release();
     }
   });
 
-  //  ─── Journal: Update a entry ────────────────────────────────────
+  // ─── Journal: Update an entry ───────────────────────────────────────
   app.put("/api/journals/:id", requireSteamID, async (req, res) => {
     const steam_id = req.steam_id;
     const entryId = req.params.id;
-    const {entry, title} = req.body;
+    const { entry, title } = req.body;
     if (!entry) {
-      return res.status(400).json({error: "Entry content is required"});
+      return res.status(400).json({ error: "Entry content is required" });
     }
 
     let conn;
     try {
       conn = await pool.getConnection();
       const [[existing]] = await conn.query(
-          `SELECT id
-           FROM journals
-           WHERE id = ?
-             AND steam_id = ?`,
+          `SELECT id FROM journals WHERE id = ? AND steam_id = ?`,
           [entryId, steam_id]
       );
       if (!existing) {
-        return res.status(404).json({error: "Entry not found or access denied"});
+        return res.status(404).json({ error: "Entry not found or access denied" });
       }
       await conn.query(
-          `UPDATE journals
-           SET entry = ?,
-               title = ?,
-               edited_at = NOW()
-           WHERE id = ?`,
+          `UPDATE journals SET entry = ?, title = ?, edited_at = NOW() WHERE id = ?`,
           [entry, title || "", entryId]
       );
       const [[updatedEntry]] = await conn.query(
-          `SELECT id, appid, entry, title AS journal_title, created_at, edited_at
-           FROM journals
-           WHERE id = ?`,
+          `SELECT id, appid, entry, title AS journal_title, created_at, edited_at FROM journals WHERE id = ?`,
           [entryId]
       );
 
       res.json(updatedEntry);
     } catch (err) {
       console.error("Error updating journal entry:", err);
-      res.status(500).json({error: "Failed to update journal entry"});
+      res.status(500).json({ error: "Failed to update journal entry" });
     } finally {
       if (conn) conn.release();
     }
-  })
+  });
 
-  if (process.env.NODE_ENV !== 'production') {
-    const buildPath = resolve(__dirname, '../frontend/build');
+  // --- Static files and frontend serving ---
+  if (process.env.NODE_ENV === "production") {
+    const buildPath = resolve(__dirname, "../frontend/build");
     app.use(express.static(buildPath));
+
+    // Serve React app for all non-API routes
     app.get(/^\/(?!api).*/, (req, res) => {
-      res.sendFile(join(buildPath, 'index.html'), (err) => {
+      res.sendFile(join(buildPath, "index.html"), (err) => {
         if (err) {
           console.error("Error serving index.html:", err);
           res.status(500).send(err);
         }
       });
-
-      // Start listening
-      app.listen(PORT, () => {
-        console.log(`Backend Initialized`);
-      });
-
-      //Starting Sign Out
-      app.post('/api/logout', (req, res, next) => {
-        req.logout(err => {
-          if (err) return next(err);
-          req.session.destroy(err2 => {
-            if (err2) return next(err2);
-            res.clearCookie('mm.sid');
-            res.redirect('/');
-          });
-        });
-      });
-
-
-      process.on("SIGINT", async () => {
-        console.log("Closing...");
-        process.exit();
-      });
-
-      startServer().catch((err) => {
-        console.error("Failed to start server:", err);
-        process.exit(1);
-      });
     });
   }
+
+  // --- Sign Out Route ---
+  app.post("/api/logout", (req, res, next) => {
+    req.logout((err) => {
+      if (err) return next(err);
+      req.session.destroy((err2) => {
+        if (err2) return next(err2);
+        res.clearCookie("mm.sid");
+        res.redirect("/");
+      });
+    });
+  });
+
+  // --- Graceful shutdown ---
+  process.on("SIGINT", async () => {
+    console.log("Closing...");
+    process.exit();
+  });
+
+  // --- Start the server ---
+  app.listen(PORT, () => {
+    console.log(`Backend Initialized on port ${PORT}`);
+  });
 }
+
+startServer().catch((err) => {
+  console.error("Failed to start server:", err);
+  process.exit(1);
+});
