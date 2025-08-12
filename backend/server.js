@@ -5,6 +5,7 @@ import express from "express";
 import cors from "cors";
 import session from "express-session";
 import passport from "passport";
+import MySQLStoreFactory from 'express-mysql-session';
 import { Strategy as SteamStrategy } from "passport-steam";
 import { getOwnedGames, getGameData, getPlayerSummary } from "./SteamAPI.js";
 import {
@@ -20,7 +21,7 @@ import { requireSteamID, requireAdmin } from './AuthMiddleware.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
+const MySQLStore = MySQLStoreFactory(session);
 const { STEAM_API_KEY, PORT } = process.env;
 
 async function startServer() {
@@ -39,7 +40,8 @@ async function startServer() {
   }
 
   // 3) Production or Development check
-  const BASE_URL = process.env.NODE_ENV !== "production" ? process.env.PUBLIC_URL : "https://localhost:3000";
+
+  const BASE_URL = process.env.NODE_ENV === "production" ? process.env.PUBLIC_URL : 'http://localhost:3000';
 
   // 4) Express setup
   const app = express();
@@ -67,12 +69,27 @@ async function startServer() {
   }));
   app.use(express.json());
 
+  const MySQLStore = MySQLStoreFactory(session);
+
+  const sessionStore = new MySQLStore(
+      {
+        createDatabaseTable: true,
+        clearExpired: true,
+        checkExpirationInterval: 1000 * 60 * 15,   // 15 min
+        expiration: 1000 * 60 * 60 * 24 * 7        // 7 days
+      },
+      pool
+  );
+
   app.use(session({
     name: "mm.sid",
     secret: process.env.SESSION_SECRET || "mindfulmediaBMG",
     resave: false,
     saveUninitialized: false,
     proxy: true,
+    store: sessionStore,
+    unset: 'destroy',
+    rolling: true,
     cookie: {
       maxAge: 7 * 24 * 60 * 60 * 1000,
       httpOnly: true,
@@ -137,8 +154,8 @@ async function startServer() {
             console.error("Could not fetch/store Steam profile:", err);
           }
           console.log("✅ Session saved, redirecting");
-          const REDIRECT_URL = process.env.NODE_ENV !== "production" ? BASE_URL : process.env.STEAM_REDIRECT;
-          res.redirect(REDIRECT_URL);
+          await new Promise((resolve, reject) => req.session.save(err => err ? reject(err) : resolve()));
+          res.redirect(BASE_URL);
         });
       }
   );
@@ -157,8 +174,8 @@ async function startServer() {
       conn.release();
       res.json({
         steam_id,
-        display_name: req.session.passport.user.displayName,
-        avatar: req.session.passport.user.photos?.[0]?.value, //only grab avatar url if it exists
+        display_name: (req.user?.displayName) || (req.session?.passport?.user?.displayName) || null,
+        avatar: (req.user?.photos?.[0]?.value) || (req.session?.passport?.user?.photos?.[0]?.value) || null,
         role: userRow?.role || 'user'
       });
     } catch (err) {
