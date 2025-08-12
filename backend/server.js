@@ -26,47 +26,29 @@ const { STEAM_API_KEY, PORT= 5000 } = process.env;
 
 const FRONTEND_BASE = process.env.NODE_ENV === "production" ? process.env.PUBLIC_URL : "http://localhost:3000";
 
-const BACKEND_BASE = process.env.NODE_ENV === "production" ? process.env.STEAM_REDIRECT : `http://localhost:${PORT}`;
+const BACKEND_BASE = process.env.NODE_ENV === "production" ? process.env.PUBLIX_URL_API : `http://localhost:${PORT}`;
 
-// --- Session Store (TiDB via mysql2 pool)
+// --- Session Store (TiDB via mysql2 pool) --- //
 const MySQLStore = (mysqlSessionPkg.default || mysqlSessionPkg)(session);
 
-let sessionOptions = {
-  name: "mm.sid",
-  secret: process.env.SESSION_SECRET || "mindfulmediaBMG",
-  resave: false,
-  saveUninitialized: false,
-  proxy: true,
-  cookie: {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    maxAge: 1000 * 60 * 60 * 24 * 7,
-  },
-};
-
-// Use MemoryStore locally
-if ((process.env.SESSION_STORE || "").toLowerCase() === "memory") {
-  sessionOptions.store = new session.MemoryStore();
-  console.log("[session] Using MemoryStore");
-} else {
-  const sessionStore = new MySQLStore(
-      {
-        createDatabaseTable: true,
-        clearExpired: true,
-        checkExpirationInterval: 1000 * 60 * 15,
-        expiration: 1000 * 60 * 60 * 24 * 7,
-        schema: {
-          tableName: "sessions",
-          columnNames: { session_id: "session_id", expires: "expires", data: "data" },
-        },
+const sessionStore = new MySQLStore(
+    {
+      createDatabaseTable: true,
+      clearExpired: true,
+      checkExpirationInterval: 1000 * 60 * 15,   // clean every 15 min
+      expiration: 1000 * 60 * 60 * 24 * 7,       // 7 days
+      schema: {
+        tableName: "sessions",
+        columnNames: {session_id: "session_id", expires: "expires", data: "data"},
       },
-      pool
-  );
-  sessionStore.on?.("error", (err) => console.error("[session-store] error:", err));
-  sessionOptions.store = sessionStore;
-  console.log("[session] Using MySQLStore");
-}
+    },
+    pool
+);
+
+// Surface store errors (helps catch DB issues fast)
+sessionStore.on?.("error", (err) => {
+  console.error("[session-store] error:", err);
+});
 
 async function startServer() {
   // 1) Express setup
@@ -100,7 +82,23 @@ async function startServer() {
   app.use(express.json());
 
   // 4) Sessions (TiDB-backed)
-  app.use(session(sessionOptions));
+  app.use(session({
+    name: "mm.sid",
+    secret: process.env.SESSION_SECRET || "mindfulmediaBMG",
+    resave: false,
+    saveUninitialized: false,
+    proxy: true,
+    store: sessionStore,
+    unset: "destroy",
+    rolling: true,
+      cookie: {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+        maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+      },
+    })
+  );
 
   // 5) Passport (Steam OpenID)
   app.use(passport.initialize());
