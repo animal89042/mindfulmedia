@@ -50,6 +50,13 @@ async function startServer() {
 
   app.set('trust proxy', 1);
 
+
+  app.get("/healthz", (req, res) => res.json({ ok: true }));
+  app.get("/api/test", (req, res) => {console.log("HIT /api/test");
+    res.json({ message: "ok" });
+  });
+
+
   const allowedOrigins = [
     'http://localhost:3000',
     'https://mindfulmedia.vercel.app',
@@ -494,8 +501,6 @@ async function startServer() {
       });
     });
   }
-
-  app.get("/healthz", (req, res) => res.json({ok: true}));
 
   // Start listening
   app.listen(PORT, () => {
