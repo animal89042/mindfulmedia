@@ -60,7 +60,7 @@ async function startServer() {
   // 3) CORS (exact origins + credentials)
   const allowedOrigins = [
     'http://localhost:3000',
-    'https://mindfulmedia.vercel.app',
+    FRONTEND_BASE,
     /^https:\/\/mindfulmedia-[^.]+\.vercel\.app$/,
   ];
 
@@ -132,10 +132,11 @@ async function startServer() {
         return next(err);
       }
       console.log("SteamID:", steam_id);
+      let conn;
       try {
         const profile = await getPlayerSummary(steam_id);
         if (profile) {
-          const conn = await pool.getConnection();
+          conn = await pool.getConnection();
           await conn.query(
             `INSERT
             IGNORE INTO users (steam_id, persona_name, avatar, profile_url, role) 
@@ -160,6 +161,7 @@ async function startServer() {
   // --- API: Verify Login ---
   app.get('/api/me', requireSteamID, async (req, res) => {
     const steam_id = req.steam_id;
+    let conn;
     try {
       const conn = await pool.getConnection();
       const [[userRow]] = await conn.query(
@@ -180,8 +182,7 @@ async function startServer() {
       console.error("Could not fetch user profile:", err);
       res.status(500).json({ error: 'Unable to fetch user role' });
     } finally {
-      if (conn)
-        conn.release();
+      if (conn) conn.release();
     }
   });
 
