@@ -1,6 +1,6 @@
 frontend/node_modules/
 # packages from npm installa and start
-
+./.idea
 backend/node_modules/
 backend/admin/node_modules/
 backend/.env
