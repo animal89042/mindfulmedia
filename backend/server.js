@@ -24,7 +24,8 @@ const __dirname = dirname(__filename);
 
 const MySQLStore = (mysqlSessionPkg.default || mysqlSessionPkg)(session);
 
-const { STEAM_API_KEY, PORT } = process.env;
+const { STEAM_API_KEY } = process.env;
+const port = Number(process.env.PORT || 8080);
 
 async function startServer() {
   // 1) Ensure schema (CREATE/ALTER) is applied
@@ -52,8 +53,9 @@ async function startServer() {
 
 
   app.get("/healthz", (req, res) => res.json({ ok: true }));
-  app.get("/api/test", (req, res) => {console.log("HIT /api/test");
-    res.json({ message: "ok" });
+  // --- API: Test Endpoint ---
+  app.get("/api/test", (req, res) => {
+    res.json({message: "Tunnel + Steam OAuth are working!"});
   });
 
 
@@ -323,11 +325,6 @@ async function startServer() {
     }
   });
 
-  // --- API: Test Endpoint ---
-  app.get("/api/test", (req, res) => {
-    res.json({message: "Tunnel + Steam OAuth are working!"});
-  });
-
   //  ─── Journal: List entries ───────────────────────────────────────────
   app.get("/api/journals", requireSteamID, async (req, res) => {
     const {appid} = req.query;
@@ -503,8 +500,8 @@ async function startServer() {
   }
 
   // Start listening
-  app.listen(PORT, () => {
-    console.log(`Backend listening on :${PORT}`);
+  app.listen(port, "0.0.0.0", () => {
+    console.log(`Backend listening on :${port}`);
   });
 
   //Starting Sign Out
