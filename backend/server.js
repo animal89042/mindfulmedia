@@ -26,7 +26,7 @@ const { STEAM_API_KEY, PORT= 5000 } = process.env;
 
 const FRONTEND_BASE = process.env.NODE_ENV === "production" ? process.env.PUBLIC_URL : "http://localhost:3000";
 
-const BACKEND_BASE = process.env.NODE_ENV === "production" ? process.env.PUBLIX_URL_API : `http://localhost:${PORT}`;
+const BACKEND_BASE = process.env.NODE_ENV === "production" ? process.env.PUBLIC_API_URL : `http://localhost:${PORT}`;
 
 // --- Session Store (TiDB via mysql2 pool) --- //
 const MySQLStore = (mysqlSessionPkg.default || mysqlSessionPkg)(session);
