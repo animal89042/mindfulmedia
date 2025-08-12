@@ -1,8 +1,0 @@
-{
-  "build": {
-    "baseDir": "backend",
-    "installCommand": "npm install",
-    "buildCommand": "",
-    "startCommand": "node server.js"
-  }
-}

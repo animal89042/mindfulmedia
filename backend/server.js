@@ -22,31 +22,51 @@ import { requireSteamID, requireAdmin } from './AuthMiddleware.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const { STEAM_API_KEY, PORT } = process.env;
+const { STEAM_API_KEY, PORT= 5000 } = process.env;
 
-const BASE_URL = process.env.NODE_ENV === "production" ? process.env.PUBLIC_URL : 'http://localhost:3000';
+const FRONTEND_BASE = process.env.NODE_ENV === "production" ? process.env.PUBLIC_URL : "http://localhost:3000";
 
-// --- Session Store (TiDB via mysql2 pool) --- //
+const BACKEND_BASE = process.env.NODE_ENV === "production" ? process.env.STEAM_REDIRECT : `http://localhost:${PORT}`;
+
+// --- Session Store (TiDB via mysql2 pool)
 const MySQLStore = (mysqlSessionPkg.default || mysqlSessionPkg)(session);
 
-const sessionStore = new MySQLStore(
-    {
-      createDatabaseTable: true,
-      clearExpired: true,
-      checkExpirationInterval: 1000 * 60 * 15,   // clean every 15 min
-      expiration: 1000 * 60 * 60 * 24 * 7,       // 7 days
-      schema: {
-        tableName: "sessions",
-        columnNames: {session_id: "session_id", expires: "expires", data: "data"},
-      },
-    },
-    pool
-);
+let sessionOptions = {
+  name: "mm.sid",
+  secret: process.env.SESSION_SECRET || "mindfulmediaBMG",
+  resave: false,
+  saveUninitialized: false,
+  proxy: true,
+  cookie: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    maxAge: 1000 * 60 * 60 * 24 * 7,
+  },
+};
 
-// Surface store errors (helps catch DB issues fast)
-sessionStore.on?.("error", (err) => {
-  console.error("[session-store] error:", err);
-});
+// Use MemoryStore locally
+if ((process.env.SESSION_STORE || "").toLowerCase() === "memory") {
+  sessionOptions.store = new session.MemoryStore();
+  console.log("[session] Using MemoryStore");
+} else {
+  const sessionStore = new MySQLStore(
+      {
+        createDatabaseTable: true,
+        clearExpired: true,
+        checkExpirationInterval: 1000 * 60 * 15,
+        expiration: 1000 * 60 * 60 * 24 * 7,
+        schema: {
+          tableName: "sessions",
+          columnNames: { session_id: "session_id", expires: "expires", data: "data" },
+        },
+      },
+      pool
+  );
+  sessionStore.on?.("error", (err) => console.error("[session-store] error:", err));
+  sessionOptions.store = sessionStore;
+  console.log("[session] Using MySQLStore");
+}
 
 async function startServer() {
   // 1) Express setup
@@ -80,23 +100,7 @@ async function startServer() {
   app.use(express.json());
 
   // 4) Sessions (TiDB-backed)
-  app.use(session({
-    name: "mm.sid",
-    secret: process.env.SESSION_SECRET || "mindfulmediaBMG",
-    resave: false,
-    saveUninitialized: false,
-    proxy: true,
-    store: sessionStore,
-    unset: "destroy",
-    rolling: true,
-      cookie: {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-        maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-      },
-    })
-  );
+  app.use(session(sessionOptions));
 
   // 5) Passport (Steam OpenID)
   app.use(passport.initialize());
@@ -108,8 +112,8 @@ async function startServer() {
   passport.use(
       new SteamStrategy(
           {
-            returnURL: `${BASE_URL}/api/auth/steam/return`,
-            realm: BASE_URL,
+            returnURL: `${BACKEND_BASE}/api/auth/steam/return`,
+            realm: BACKEND_BASE,
             apiKey: STEAM_API_KEY,
           },
           (identifier, profile, done) => done(null, profile)
@@ -152,9 +156,8 @@ async function startServer() {
       // Ensure the session is saved to TiDB before redirecting
       await new Promise((resolve, reject) => req.session.save((e2) => (e2 ? reject(e2) : resolve()))
       );
-
       console.log("✅ Session saved, redirecting");
-      res.redirect(BASE_URL);
+      res.redirect(FRONTEND_BASE);
       });
     }
   );
@@ -481,17 +484,18 @@ async function startServer() {
   })
 
   // --- Static (dev-only)
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV === 'production') {
     const buildPath = resolve(__dirname, '../frontend/build');
-    app.use(express.static(buildPath));
-    app.get(/^\/(?!api).*/, (req, res) => {
-      res.sendFile(join(buildPath, 'index.html'), (err) => {
-        if (err) {
-          console.error("Error serving index.html:", err);
-          res.status(500).send(err);
-        }
-      });
-    });
+      app.use(express.static(buildPath));
+      app.get(/^\/(?!api).*/, (req, res) => {
+        res.sendFile(join(buildPath, 'index.html'), (err) => {
+          if (err) {
+            console.error("Error serving index.html:", err);
+            res.status(500).send(err);
+          }
+        });
+      }
+    )
   }
 
   // Log Out
