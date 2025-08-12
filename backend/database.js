@@ -37,23 +37,34 @@ export const pool = mysql.createPool({
 
 console.log("[DB] host:", DB_HOST, "port:", DB_PORT, "TLS:", TIDB_ENABLE_SSL);
 
+
+// 2) Verify connection
+try {
+    const conn = await pool.getConnection();
+    await conn.ping();
+    await pool.query("SELECT 1");
+
+} catch (err) {
+    console.error("DB pool failed:", err);
+    process.exit(1);
+}
+
 /* Run init.sql (with CREATE/ALTER statements) once at startup. */
 export async function initSchema(sqlFilePath) {
     const raw = fs.readFileSync(sqlFilePath, "utf8");
     const conn = await pool.getConnection();
     try {
-        // optional: ensure utf8mb4
         await conn.query("SET NAMES utf8mb4");
-        // split into individual statements and run them one at a time
         const statements = raw
-            .split(/;\s*[\r\n]+/g)
-            .map(s => s.trim())
-            .filter(Boolean);
+        .split(/;\s*[\r\n]+/g)
+        .map(s => s.trim())
+        .filter(Boolean);
         for (const stmt of statements) {
             await conn.query(stmt);
         }
-    } finally {
-        conn.release();
+        console.log("DB pool connected");
+        } catch (err) {
+        console.error("DB pool failed:", err);
     }
 }
 

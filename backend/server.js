@@ -22,101 +22,89 @@ import { requireSteamID, requireAdmin } from './AuthMiddleware.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const MySQLStore = (mysqlSessionPkg.default || mysqlSessionPkg)(session);
-
 const { STEAM_API_KEY, PORT } = process.env;
 
+const BASE_URL = process.env.NODE_ENV === "production" ? process.env.PUBLIC_URL : 'http://localhost:3000';
+
+// --- Session Store (TiDB via mysql2 pool) --- //
+const MySQLStore = (mysqlSessionPkg.default || mysqlSessionPkg)(session);
+
+const sessionStore = new MySQLStore(
+    {
+      createDatabaseTable: true,
+      clearExpired: true,
+      checkExpirationInterval: 1000 * 60 * 15,   // clean every 15 min
+      expiration: 1000 * 60 * 60 * 24 * 7,       // 7 days
+      schema: {
+        tableName: "sessions",
+        columnNames: {session_id: "session_id", expires: "expires", data: "data"},
+      },
+    },
+    pool
+);
+
+// Surface store errors (helps catch DB issues fast)
+sessionStore.on?.("error", (err) => {
+  console.error("[session-store] error:", err);
+});
+
 async function startServer() {
-  // 1) Ensure schema (CREATE/ALTER) is applied
-  await initSchema(resolve(__dirname, "init.sql"));
-
-  // 2) Verify connection
-  try {
-    const conn = await pool.getConnection();
-    await conn.ping();
-    await pool.query("SELECT 1");
-    console.log("DB pool connected");
-    conn.release();
-  } catch (err) {
-    console.error("DB pool failed:", err);
-    process.exit(1);
-  }
-
-  // 3) Production or Development check
-  const BASE_URL = process.env.NODE_ENV === "production" ? process.env.PUBLIC_URL : 'http://localhost:3000';
-
-  // 4) Express setup
+  // 1) Express setup
   const app = express();
 
+  // 2) Trust Railway's proxy so secure cookies work
   app.set('trust proxy', 1);
 
+  // 3) CORS (exact origins + credentials)
   const allowedOrigins = [
     'http://localhost:3000',
     'https://mindfulmedia.vercel.app',
     /^https:\/\/mindfulmedia-[^.]+\.vercel\.app$/,
   ];
 
-  app.use(cors({
-    origin(origin, callback) {
-      console.log("CORS CHECK:", origin); // log every request
-      if (!origin) return callback(null, true); // allow server-to-server or curl requests
-      const ok = allowedOrigins.some(o => typeof o === 'string' ? o === origin : o.test(origin));
-      if (!ok) {
-        console.log("CORS BLOCKED:", origin);
-        return callback(new Error("CORS policy violation"), false);
-      }
-      return callback(null, true);
-    },
-    credentials: true, // allow cookies and credentials
-  }));
-  app.use(express.json());
-
-// ---- Sessions (TiDB via pooled MySQLStore) ----
-  const sessionStore = new MySQLStore(
-      {
-        createDatabaseTable: true,                 // creates `sessions` table if not exists
-        clearExpired: true,
-        checkExpirationInterval: 1000 * 60 * 15,   // clean every 15 min
-        expiration: 1000 * 60 * 60 * 24 * 7,       // 7 days
-        schema: {
-          tableName: "sessions",
-          columnNames: {
-            session_id: "session_id",
-            expires: "expires",
-            data: "data",
-          },
-        },
+  app.use(
+    cors({
+      origin(origin, callback) {
+        if (!origin) return callback(null, true); // allow server-to-server or curl requests
+        const ok = allowedOrigins.some(o => typeof o === 'string' ? o === origin : o.test(origin));
+        if (!ok) {
+          console.log("CORS BLOCKED:", origin);
+          return callback(new Error("CORS policy violation"), false);
+        }
+        return callback(null, true);
       },
-      pool
+      credentials: true, // allow cookies and credentials
+    })
   );
 
-// Surface store errors (helps catch DB issues fast)
-  sessionStore.on?.("error", (err) => {
-    console.error("[session-store] error:", err);
-  });
+  app.use(express.json());
 
+  // 4) Sessions (TiDB-backed)
   app.use(session({
     name: "mm.sid",
     secret: process.env.SESSION_SECRET || "mindfulmediaBMG",
     resave: false,
     saveUninitialized: false,
-    proxy: true,                     // trust Railway proxy (you already call app.set('trust proxy', 1))
-    store: sessionStore,             // << TiDB store
+    proxy: true,
+    store: sessionStore,
     unset: "destroy",
-    rolling: true,                   // refresh cookie maxAge on activity
-    cookie: {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-    },
-  }));
+    rolling: true,
+      cookie: {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+        maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+      },
+    })
+  );
 
+  // 5) Passport (Steam OpenID)
   app.use(passport.initialize());
   app.use(passport.session());
 
   passport.serializeUser((user, done) => done(null, user));
   passport.deserializeUser((user, done) => done(null, user));
+
   passport.use(
       new SteamStrategy(
           {
@@ -128,55 +116,52 @@ async function startServer() {
       )
   );
 
-  // --- OAuth Endpoints ---
+  // 6) OAuth Endpoints
   app.get("/api/auth/steam/login", passport.authenticate("steam"));
-  app.get(
-      "/api/auth/steam/return",
-      passport.authenticate("steam", {failureRedirect: "/"}),
-      (req, res, next) => {
-        const steam_id = req.user?.id;
-        if (!steam_id) return res.redirect("/login/error");
 
-        // Manually login to save session and send cookie
-        req.login(req.user, async (err) => {
-          if (err) {
-            console.error("Login error:", err);
-            return next(err);
-          }
+  app.get("/api/auth/steam/return", passport.authenticate("steam", {failureRedirect: "/"}), (req, res, next) => {
+    const steam_id = req.user?.id;
+    if (!steam_id) return res.redirect("/login/error");
 
-          console.log("SteamID:", steam_id);
-          console.log("BEFORE SESSION LOGIN RETURN");
-          console.log("SESSION AT LOGIN RETURN:", req.session);
-          console.log("AFTER SESSION LOGIN RETURN");
-          console.log("USER AT LOGIN RETURN:", req.user);
-          console.log("SESSION PASSPORT:", req.session.passport?.user);
-
-          try {
-            const profile = await getPlayerSummary(steam_id);
-            if (profile) {
-              const conn = await pool.getConnection();
-              await conn.query(
-                  `INSERT
-                  IGNORE INTO users (steam_id, persona_name, avatar, profile_url, role)
-             VALUES (?, ?, ?, ?, ?)`,
-                  [steam_id, profile.persona_name, profile.avatar, profile.profile_url, 'user']
-              );
-              await upsertUserProfile(conn, steam_id, profile);
-              conn.release();
-            }
-          } catch (err) {
-            console.error("Could not fetch/store Steam profile:", err);
-          }
-          console.log("✅ Session saved, redirecting");
-          await new Promise((resolve, reject) => req.session.save(err => err ? reject(err) : resolve()));
-          res.redirect(BASE_URL);
-        });
+    // Manually login to save session and send cookie
+    req.login(req.user, async (err) => {
+      if (err) {
+        console.error("Login error:", err);
+        return next(err);
       }
+
+      console.log("SteamID:", steam_id);
+
+      try {
+        const profile = await getPlayerSummary(steam_id);
+        if (profile) {
+          const conn = await pool.getConnection();
+          await conn.query(
+            `INSERT
+            IGNORE INTO users (steam_id, persona_name, avatar, profile_url, role) 
+            VALUES (?, ?, ?, ?, ?)`,
+            [steam_id, profile.persona_name, profile.avatar, profile.profile_url, 'user']
+          );
+          await upsertUserProfile(conn, steam_id, profile);
+          conn.release();
+        }
+      } catch (err) {
+        console.error("Could not fetch/store Steam profile:", err);
+      }
+
+      // Ensure the session is saved to TiDB before redirecting
+      await new Promise((resolve, reject) => req.session.save((e2) => (e2 ? reject(e2) : resolve()))
+      );
+
+      console.log("✅ Session saved, redirecting");
+      res.redirect(BASE_URL);
+      });
+    }
   );
+
   // --- API: Verify Login ---
   app.get('/api/me', requireSteamID, async (req, res) => {
     const steam_id = req.steam_id;
-
     try {
       const conn = await pool.getConnection();
       const [[userRow]] = await conn.query(
@@ -186,10 +171,13 @@ async function startServer() {
           [steam_id]
       );
       conn.release();
+
       res.json({
         steam_id,
-        display_name: (req.user?.displayName) || (req.session?.passport?.user?.displayName) || null,
-        avatar: (req.user?.photos?.[0]?.value) || (req.session?.passport?.user?.photos?.[0]?.value) || null,
+        display_name:
+            req.user?.displayName || req.session?.passport?.user?.displayName || null,
+        avatar:
+            req.user?.photos?.[0]?.value || req.session?.passport?.user?.photos?.[0]?.value || null,
         role: userRow?.role || 'user'
       });
     } catch (err) {
@@ -197,6 +185,7 @@ async function startServer() {
       res.status(500).json({error: "Unable to fetch user role"})
     }
   });
+
   // --- Admin: list all users ---
   app.get(
       "/api/admin/users",
@@ -217,6 +206,7 @@ async function startServer() {
         }
       }
   );
+
   // --- API: Player Summary ---
   app.get("/api/playersummary", requireSteamID, async (req, res) => {
     const steam_id = req.steam_id;
@@ -370,7 +360,6 @@ async function startServer() {
             [steam_id]
         );
       }
-
       console.log(
           `Fetched ${rows.length} journal entries${appid ? ` for ${appid}` : ""}`
       );
@@ -491,6 +480,7 @@ async function startServer() {
     }
   })
 
+  // --- Static (dev-only)
   if (process.env.NODE_ENV !== 'production') {
     const buildPath = resolve(__dirname, '../frontend/build');
     app.use(express.static(buildPath));
@@ -504,12 +494,7 @@ async function startServer() {
     });
   }
 
-  // Start listening
-  app.listen(PORT, () => {
-    console.log(`Backend listening on :${PORT}`);
-  });
-
-  //Starting Sign Out
+  // Log Out
   app.post('/api/logout', (req, res, next) => {
     req.logout(err => {
       if (err) return next(err);
@@ -521,6 +506,11 @@ async function startServer() {
     });
   });
 
+  // Start listening
+  app.listen(PORT, () => {
+    console.log(`Backend listening on :${PORT}`);
+    warmup();
+  });
 
   process.on("SIGINT", async () => {
     console.log("Closing...");
@@ -528,9 +518,19 @@ async function startServer() {
   });
 }
 
+// Background warmup: optional migrations + open DB/session paths
+async function warmup() {
+  const t0 = Date.now();
+  try {
+    await initSchema(resolve(__dirname, "init.sql"));
+    await pool.query("SELECT 1");
+    console.log("DB warmup complete in", Date.now() - t0, "ms");
+  } catch (err) {
+    console.error("DB warmup failed:", err);
+  }
+}
+
 startServer().catch((err) => {
   console.error("Failed to start server:", err);
   process.exit(1);
 });
-
-
