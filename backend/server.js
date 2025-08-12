@@ -144,7 +144,6 @@ async function startServer() {
             [steam_id, profile.persona_name, profile.avatar, profile.profile_url, 'user']
           );
           await upsertUserProfile(conn, steam_id, profile);
-          conn.release();
         }
       } catch (err) {
         console.error("Could not fetch/store Steam profile:", err);
@@ -182,7 +181,8 @@ async function startServer() {
       console.error("Could not fetch user profile:", err);
       res.status(500).json({ error: 'Unable to fetch user role' });
     } finally {
-      if (conn) conn.release();
+      if (conn)
+        conn.release();
     }
   });
 
