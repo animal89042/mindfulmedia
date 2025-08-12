@@ -35,7 +35,7 @@ export const pool = mysql.createPool({
   keepAliveInitialDelay: 0
 });
 
-console.log("[DB] host:", DB_HOST, "port:", DB_PORT, "TLS:", wantTLS);
+console.log("[DB] host:", DB_HOST, "port:", DB_PORT, "TLS:", TIDB_ENABLE_SSL);
 
 /* Run init.sql (with CREATE/ALTER statements) once at startup. */
 export async function initSchema(sqlFilePath) {
