@@ -1,4 +1,9 @@
-const BASE = process.env.REACT_APP_API_BASE_URL || 'https://mindfulmedia-production.up.railway.app/api';
+let BASE;
+if (process.env.NODE_ENV === "production") {
+    BASE = "https://mindfulmedia-production-6737.up.railway.app/api";
+} else {
+    BASE = "http://localhost:5000/api";
+}
 
 const apiRoutes = {
     login: `${BASE}/auth/steam/login`,
