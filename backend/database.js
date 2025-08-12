@@ -18,9 +18,6 @@ const {
   TIDB_ENABLE_SSL,
 } = process.env;
 
-const hostIsTiDB = !!DB_HOST && DB_HOST.includes("tidbcloud.com");
-const wantTLS = (TIDB_ENABLE_SSL ?? "").toString().toLowerCase() === "true" || hostIsTiDB;
-
 // 1) Create MySQL pool
 export const pool = mysql.createPool({
   host: DB_HOST,
@@ -28,9 +25,14 @@ export const pool = mysql.createPool({
   user: DB_USER,
   password: DB_PASS,
   database: DB_NAME,
+  ssl: { minVersion: "TLSv1.2", rejectUnauthorized: true },
   waitForConnections: true,
-  connectionLimit: 5,
-  ssl: wantTLS ? { minVersion: "TLSv1.2", rejectUnauthorized: true } : undefined,
+  connectionLimit: 10,
+  queueLimit: 0,
+  // Conservative timeouts so requests don't hang ~30s
+  connectTimeout: 10000,      // 10s
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 0
 });
 
 console.log("[DB] host:", DB_HOST, "port:", DB_PORT, "TLS:", wantTLS);
