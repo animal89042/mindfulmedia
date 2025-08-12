@@ -1,15 +1,12 @@
-const BASE = process.env.REACT_APP_API_BASE_URL;
-
-// Login must be full backend URL in dev
-let LOGIN_BASE;
+let BASE;
 if (process.env.NODE_ENV === "production") {
-    LOGIN_BASE = BASE;
+    BASE = "https://mindfulmedia-production-6737.up.railway.app";
 } else {
-    LOGIN_BASE = "http://localhost:5000/api";
+    BASE = "http://localhost:5000/api";
 }
 
 const apiRoutes = {
-    login: `${LOGIN_BASE}/auth/steam/login`,
+    login: `${BASE}/auth/steam/login`,
     getUser: `${BASE}/me`,
     getGame: (appid) => `${BASE}/game/${appid}`, //fetch game details
     getGames:  `${BASE}/games`,
