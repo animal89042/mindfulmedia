@@ -131,9 +131,7 @@ async function startServer() {
         console.error("Login error:", err);
         return next(err);
       }
-
       console.log("SteamID:", steam_id);
-
       try {
         const profile = await getPlayerSummary(steam_id);
         if (profile) {
@@ -150,7 +148,6 @@ async function startServer() {
       } catch (err) {
         console.error("Could not fetch/store Steam profile:", err);
       }
-
       // Ensure the session is saved to TiDB before redirecting
       await new Promise((resolve, reject) => req.session.save((e2) => (e2 ? reject(e2) : resolve()))
       );
@@ -171,8 +168,6 @@ async function startServer() {
            WHERE steam_id = ?`,
           [steam_id]
       );
-      conn.release();
-
       res.json({
         steam_id,
         display_name:
@@ -183,7 +178,10 @@ async function startServer() {
       });
     } catch (err) {
       console.error("Could not fetch user profile:", err);
-      res.status(500).json({error: "Unable to fetch user role"})
+      res.status(500).json({ error: 'Unable to fetch user role' });
+    } finally {
+      if (conn)
+        conn.release();
     }
   });
 
@@ -498,11 +496,18 @@ async function startServer() {
 
   // Log Out
   app.post('/api/logout', (req, res, next) => {
+    const cookieOpts = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/',
+    };
+
     req.logout(err => {
       if (err) return next(err);
       req.session.destroy(err2 => {
         if (err2) return next(err2);
-        res.clearCookie('mm.sid');
+        res.clearCookie('mm.sid', cookieOpts);
         res.redirect('/');
       });
     });
