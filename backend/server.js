@@ -48,13 +48,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // ENV
-const {STEAM_API_KEY, PORT = 5000} = process.env;
+const { STEAM_API_KEY, PORT = 5000 } = process.env;
 
 const isProd = process.env.NODE_ENV === 'production';
 
 const FRONTEND_BASE = isProd ? process.env.PUBLIC_URL : "http://localhost:3000";
 const BACKEND_BASE = isProd ? process.env.PUBLIC_API_URL : `http://localhost:${PORT}`;
-const STEAM_CALLBACK_BASE = isProd ? FRONTEND_BASE : BACKEND_BASE;
 
 // Session Store (TiDB via mysql2 pool)
 const MySQLStore = (mysqlSessionPkg.default || mysqlSessionPkg)(session);
@@ -152,8 +151,8 @@ async function startServer() {
     passport.use(
         new SteamStrategy(
             {
-                returnURL: `${STEAM_CALLBACK_BASE}/api/auth/steam/return`,
-                realm: STEAM_CALLBACK_BASE,
+                returnURL: `${BACKEND_BASE}/api/auth/steam/return`,
+                realm:  BACKEND_BASE,
                 apiKey: STEAM_API_KEY,
             },
             (identifier, profile, done) => done(null, profile)
