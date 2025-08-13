@@ -159,10 +159,9 @@ async function startServer() {
     // 6) OAuth Endpoints
     app.get("/api/auth/steam/login", passport.authenticate("steam"));
 
-    app.get(
-        "/api/auth/steam/return",
-        passport.authenticate("steam", { failureRedirect: "/?login=failed" }),
+    app.get("/api/auth/steam/return", passport.authenticate("steam", {failureRedirect: "/?login=failed"}),
         async (req, res) => {
+            const conn = await pool.getConnection();
             try {
                 const steam_id = extractSteamId(req);
                 if (!steam_id) return res.redirect("/?login=bad_profile");
@@ -172,20 +171,20 @@ async function startServer() {
                 req.steam_id = steam_id;
 
                 // create/attach identity + profile, idempotent
-                const conn = await pool.getConnection();
                 try {
+                    // make sure the user + identity exist; pass displayName so we can adopt it if free
                     await ensureUser(conn, steam_id, req.user?.displayName || null);
+                    // update only fields that exist in prod
                     await upsertUserProfile(conn, steam_id, {
-                        personaname: req.user?.displayName || null,
                         avatar: req.user?.photos?.[0]?.value || null,
                         profileurl: req.user?._json?.profileurl || null,
                     });
                 } finally {
                     conn.release();
                 }
-
-                // back to app (first-party domain)
-                res.redirect("/");
+                // keep your session write
+                req.session.steam_id = steam_id;
+                res.redirect('/');
             } catch (err) {
                 console.error("Steam return error:", err);
                 res.redirect("/?login=error");
@@ -395,7 +394,7 @@ async function startServer() {
             // 1) Get playtime from cached owned games
             const owned = await getOwnedGames(steam_id);
             const game = owned.find(g => String(g.appid) === appid);
-            if (!game) return res.status(404).json({ error: "Game not found" });
+            if (!game) return res.status(404).json({error: "Game not found"});
 
             // 2) Try to get additional stats from Steam API
             let extraStats = {};
@@ -417,7 +416,7 @@ async function startServer() {
             });
         } catch (err) {
             console.error("Error in /api/game/:appid/stats:", err);
-            res.status(500).json({ error: "Failed to fetch game stats" });
+            res.status(500).json({error: "Failed to fetch game stats"});
         }
     });
 

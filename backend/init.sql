@@ -4,21 +4,21 @@
 
 CREATE TABLE IF NOT EXISTS users
 (
-    id           BIGINT PRIMARY KEY AUTO_INCREMENT,
-    steam_id     VARCHAR(64) UNIQUE,
-    persona_name VARCHAR(255),
-    avatar       TEXT,
-    profile_url  TEXT,
-    role         ENUM ('user','admin') DEFAULT 'user',
-    created_at   TIMESTAMP             DEFAULT CURRENT_TIMESTAMP
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    username    VARCHAR(255) NOT NULL UNIQUE,
+    avatar      TEXT,
+    profile_url TEXT,
+    role        ENUM ('user','admin') DEFAULT 'user',
+    created_at  TIMESTAMP             DEFAULT CURRENT_TIMESTAMP
 );
 
+-- LEGACY games: only used for joins in the journal UI
 CREATE TABLE IF NOT EXISTS games
 (
-    id           BIGINT PRIMARY KEY AUTO_INCREMENT,
-    appid        VARCHAR(32) UNIQUE,
-    name         VARCHAR(255),
-    header_image TEXT
+    id        BIGINT PRIMARY KEY AUTO_INCREMENT,
+    appid     VARCHAR(32) UNIQUE,
+    title     VARCHAR(255),
+    image_url TEXT
 );
 
 CREATE TABLE IF NOT EXISTS user_games
@@ -29,13 +29,16 @@ CREATE TABLE IF NOT EXISTS user_games
     PRIMARY KEY (steam_id, appid)
 );
 
+-- LEGACY journals: fields the app reads/writes
 CREATE TABLE IF NOT EXISTS journals
 (
     id         BIGINT PRIMARY KEY AUTO_INCREMENT,
     steam_id   VARCHAR(64) NOT NULL,
     appid      VARCHAR(32) NOT NULL,
-    content    TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    entry      TEXT,
+    title      VARCHAR(255) DEFAULT '',
+    created_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    edited_at  TIMESTAMP   NULL
 );
 
 /* =========================
@@ -128,15 +131,14 @@ CREATE TABLE IF NOT EXISTS ingestion_snapshots
 DROP VIEW IF EXISTS v_identity_library;
 
 CREATE VIEW v_identity_library AS
-SELECT
-    ugl.identity_id,
-    pg.platform,
-    pg.platform_game_id AS game_id,
-    COALESCE(pg.name, CONCAT('App ', pg.platform_game_id)) AS game_name,
-    pg.icon_url,
-    ugl.playtime_minutes,
-    ugl.last_played_at,
-    ugl.last_refreshed
+SELECT ugl.identity_id,
+       pg.platform,
+       pg.platform_game_id                                    AS game_id,
+       COALESCE(pg.name, CONCAT('App ', pg.platform_game_id)) AS game_name,
+       pg.icon_url,
+       ugl.playtime_minutes,
+       ugl.last_played_at,
+       ugl.last_refreshed
 FROM user_game_library AS ugl
          JOIN platform_games AS pg
               ON pg.id = ugl.platform_game_id;
