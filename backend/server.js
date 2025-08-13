@@ -168,6 +168,7 @@ async function startServer() {
 
     // --- API: Verify Login ---
     app.get("/api/me", requireSteamID, async (req, res) => {
+        res.set("Cache-Control", "no-store");
         const steam_id = req.steam_id;
         let conn;
         try {
@@ -349,7 +350,7 @@ async function startServer() {
                 appid,
                 name: game.name,
                 playtimeMinutes: minutes,
-                playtimeHours: Math.round(minutes / 60),
+                playtimeHours: Math.floor(minutes / 60),
                 stats: extraStats,
             });
         } catch (err) {
