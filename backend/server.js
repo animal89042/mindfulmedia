@@ -73,7 +73,7 @@ async function startServer() {
     const allowedOrigins = [
         'http://localhost:3000',
         FRONTEND_BASE,
-        /^https:\/\/mindfulmedia-[^.]+\.vercel\.app$/,
+        /\.vercel\.app$/,
     ];
 
     app.use(
@@ -95,22 +95,20 @@ async function startServer() {
 
     // 4) Sessions (TiDB-backed)
     app.use(session({
-            name: "mm.sid",
-            secret: process.env.SESSION_SECRET || "mindfulmediaBMG",
-            resave: false,
-            saveUninitialized: false,
-            proxy: true,
-            store: sessionStore,
-            unset: "destroy",
-            rolling: true,
-            cookie: {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === "production",
-                sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-                maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-            },
-        })
-    );
+        store: MySQLStore,             // your existing store
+        name: "mm.sid",
+        secret: process.env.SESSION_SECRET,
+        resave: false,
+        saveUninitialized: false,
+        proxy: true,                   // important when setting secure cookies behind proxy
+        cookie: {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",  // true on Vercel/Railway
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+            maxAge: 1000 * 60 * 60 * 24 * 7
+            // DO NOT set `domain` for *.vercel.app — it's a public suffix and will be rejected
+        }
+    }));
 
     // 5) Passport (Steam OpenID)
     app.use(passport.initialize());
