@@ -95,7 +95,7 @@ async function startServer() {
 
     // 4) Sessions (TiDB-backed)
     app.use(session({
-        store: MySQLStore,             // your existing store
+        store: sessionStore,             // your existing store
         name: "mm.sid",
         secret: process.env.SESSION_SECRET,
         resave: false,
