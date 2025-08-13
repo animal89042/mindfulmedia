@@ -595,7 +595,7 @@ async function startServer() {
     })
 
     // --- Static (dev-only)
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.NODE_ENV !== 'production') {
         const buildPath = resolve(__dirname, '../frontend/build');
         app.use(express.static(buildPath));
         app.get(/^\/(?!api).*/, (req, res) => {
