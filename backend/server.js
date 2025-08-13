@@ -137,6 +137,12 @@ async function startServer() {
         "/api/auth/steam/return",
         passport.authenticate("steam", {failureRedirect: "/"}),
         (req, res, next) => {
+            res.set({
+                "Cache-Control": "no-store",
+                "Pragma": "no-cache",
+                "Expires": "0",
+                "CDN-Cache-Control": "no-store"
+            });
             const steam_id = req.user?.id;
             if (!steam_id) return res.redirect("/login/error");
             req.login(req.user, async (err) => {
@@ -168,7 +174,12 @@ async function startServer() {
 
     // --- API: Verify Login ---
     app.get("/api/me", requireSteamID, async (req, res) => {
-        res.set("Cache-Control", "no-store");
+        res.set({
+            "Cache-Control": "no-store",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "CDN-Cache-Control": "no-store"
+        });
         const steam_id = req.steam_id;
         let conn;
         try {
@@ -206,6 +217,12 @@ async function startServer() {
 
     // --- Admin: list all users ---
     app.get("/api/admin/users", requireSteamID, requireAdmin, async (req, res) => {
+        res.set({
+            "Cache-Control": "no-store",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "CDN-Cache-Control": "no-store"
+        });
         try {
             const [rows] = await pool.query(
                 `
@@ -226,6 +243,12 @@ async function startServer() {
 
     // --- API: Player Summary ---
     app.get("/api/playersummary", requireSteamID, async (req, res) => {
+        res.set({
+            "Cache-Control": "no-store",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "CDN-Cache-Control": "no-store"
+        });
         const steam_id = req.steam_id;
         let conn;
         try {
@@ -276,6 +299,12 @@ async function startServer() {
 
     // --- API: User's Owned Games ---
     app.get("/api/games", requireSteamID, async (req, res) => {
+        res.set({
+            "Cache-Control": "no-store",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "CDN-Cache-Control": "no-store"
+        });
         const steam_id = req.steam_id;
         if (!steam_id) return res.status(401).json({error: "Not logged in"});
         try {
@@ -314,6 +343,12 @@ async function startServer() {
 
     // --- API: Single Game Details ---
     app.get("/api/game/:id", requireSteamID, async (req, res) => {
+        res.set({
+            "Cache-Control": "no-store",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "CDN-Cache-Control": "no-store"
+        });
         try {
             const game = await getGameData(req.params.id);
             if (!game) return res.status(404).json({error: "Game not found"});
@@ -368,11 +403,23 @@ async function startServer() {
 
     // --- API: Test Endpoint ---
     app.get("/api/test", (req, res) => {
+        res.set({
+            "Cache-Control": "no-store",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "CDN-Cache-Control": "no-store"
+        });
         res.json({message: "Tunnel + Steam OAuth are working!"});
     });
 
     //  ─── Journal: List entries ───────────────────────────────────────────
     app.get("/api/journals", requireSteamID, async (req, res) => {
+        res.set({
+            "Cache-Control": "no-store",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "CDN-Cache-Control": "no-store"
+        });
         const {appid} = req.query;
         const steam_id = req.steam_id;
         let conn;
@@ -425,6 +472,12 @@ async function startServer() {
 
     //  ─── Journal: Create a new entry ────────────────────────────────────
     app.post("/api/journals", requireSteamID, async (req, res) => {
+        res.set({
+            "Cache-Control": "no-store",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "CDN-Cache-Control": "no-store"
+        });
         const {appid, entry, title} = req.body;
         const steam_id = req.steam_id;
 
@@ -457,6 +510,12 @@ async function startServer() {
 
     //  ─── Journal: Delete a entry ────────────────────────────────────
     app.delete("/api/journals/:id", requireSteamID, async (req, res) => {
+        res.set({
+            "Cache-Control": "no-store",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "CDN-Cache-Control": "no-store"
+        });
         const steam_id = req.steam_id;
         const entryId = req.params.id;
         let conn;
@@ -487,6 +546,12 @@ async function startServer() {
 
     //  ─── Journal: Update a entry ────────────────────────────────────
     app.put("/api/journals/:id", requireSteamID, async (req, res) => {
+        res.set({
+            "Cache-Control": "no-store",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "CDN-Cache-Control": "no-store"
+        });
         const steam_id = req.steam_id;
         const entryId = req.params.id;
         const {entry, title} = req.body;
