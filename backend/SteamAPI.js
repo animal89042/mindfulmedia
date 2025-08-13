@@ -1,5 +1,7 @@
 import axios from "axios";
 
+const STEAM_API_KEY = process.env.STEAM_API_KEY;
+
 // axios instance with timeout & tiny retry helper
 const http = axios.create({
     timeout: 8000,
