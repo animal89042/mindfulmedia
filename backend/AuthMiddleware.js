@@ -1,24 +1,42 @@
-import { pool } from './database.js';
+import {pool} from './database.js';
 
 export const requireSteamID = (req, res, next) => {
-    const steam_id = req.session?.passport?.user?.id;
-    if (!steam_id) {
-        return;
+    const steamId =
+        req.user?.id ||
+        req.session?.passport?.user?.id ||
+        null;
+
+    if (!steamId) {
+        return res.status(401).json({error: "Not authenticated"});
     }
-    req.steam_id = steam_id;
+    req.steam_id = steamId;
     next();
 };
 
 export async function requireAdmin(req, res, next) {
-    const steam_id = req.steam_id;    // ← use the same one you set above
-    const conn = await pool.getConnection();
-    const [rows] = await conn.query(
-        `SELECT role FROM users WHERE steam_id = ?`,
-        [steam_id],
-    );
-    conn.release();
-    if (!rows.length || rows[0].role !== 'admin') {
-        return res.status(403).json({ error: 'Not Admin' });
+    const steam_id = req.steam_id;
+    if (!steam_id) return res.status(401).json({error: "Not authenticated"});
+
+    try {
+        const [[row]] = await pool.query(
+            `
+                SELECT u.role
+                FROM users u
+                         JOIN user_identities ui ON ui.user_id = u.id
+                WHERE ui.platform = 'steam'
+                  AND ui.platform_user_id = ?
+                LIMIT 1
+            `,
+            [steam_id]
+        );
+
+        if (!row) return res.status(403).json({error: "No user record"});
+        if (row.role !== "admin") {
+            return res.status(403).json({error: "Admin only"});
+        }
+        next();
+    } catch (err) {
+        console.error("[requireAdmin] error:", err);
+        res.status(500).json({error: "Authorization check failed"});
     }
-    next();
 }
