@@ -5,10 +5,10 @@ const STEAM_API_KEY = process.env.STEAM_API_KEY;
 // axios instance with timeout & tiny retry helper
 const http = axios.create({
     timeout: 8000,
-    headers: { "Accept-Encoding": "gzip, deflate, br" },
+    headers: {"Accept-Encoding": "gzip, deflate, br"},
 });
 
-async function withRetry(fn, { retries = 2, delayMs = 400 } = {}) {
+async function withRetry(fn, {retries = 2, delayMs = 400} = {}) {
     let lastErr;
     for (let i = 0; i <= retries; i++) {
         try {
@@ -32,7 +32,7 @@ function getCache(key) {
 }
 
 function setCache(key, val, ttlMs = 60_000) {
-    cache.set(key, { val, exp: Date.now() + ttlMs });
+    cache.set(key, {val, exp: Date.now() + ttlMs});
 }
 
 function iconUrl(appid, hash) {
@@ -54,7 +54,7 @@ export async function getOwnedGames(steamID) {
         include_played_free_games: 1,
     };
 
-    const data = await withRetry(async () => (await http.get(url, { params })).data);
+    const data = await withRetry(async () => (await http.get(url, {params})).data);
     const games = data?.response?.games ?? [];
 
     const normalized = games.map(g => ({
@@ -75,9 +75,9 @@ export async function getGameData(appid) {
     if (cached) return cached;
 
     const url = "https://store.steampowered.com/api/appdetails";
-    const params = { appids: appid };
+    const params = {appids: appid};
 
-    const data = await withRetry(async () => (await http.get(url, { params })).data);
+    const data = await withRetry(async () => (await http.get(url, {params})).data);
     const item = data?.[appid];
 
     if (!item?.success || !item?.data) return null;
@@ -103,9 +103,9 @@ export async function getPlayerSummary(steamID) {
     if (cached) return cached;
 
     const url = "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/";
-    const params = { key: STEAM_API_KEY, steamids: steamID };
+    const params = {key: STEAM_API_KEY, steamids: steamID};
 
-    const data = await withRetry(async () => (await http.get(url, { params })).data);
+    const data = await withRetry(async () => (await http.get(url, {params})).data);
     const p = data?.response?.players?.[0];
     if (!p) return null;
 

@@ -1,6 +1,6 @@
 const BASE =
     process.env.NODE_ENV === "production"
-        ? "/api"                  // ✅ proxy through Vercel
+        ? "/api"
         : "http://localhost:5000/api";
 
 const apiRoutes = {

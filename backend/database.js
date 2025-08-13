@@ -123,10 +123,10 @@ export async function ensureUser(conn, steamID, displayName) {
 export async function upsertUserProfile(conn, steamID, { avatar, profileurl }) {
     await conn.query(
         `UPDATE users u
-       JOIN user_identities ui 
-         ON ui.user_id = u.id
-      SET u.avatar = ?, u.profile_url = ?
-     WHERE ui.platform='steam' AND ui.platform_user_id=?`,
+            JOIN user_identities ui
+            ON ui.user_id = u.id
+         SET u.avatar = ?, u.profile_url = ?
+         WHERE ui.platform='steam' AND ui.platform_user_id=?`,
         [avatar ?? null, profileurl ?? null, String(steamID)]
     );
 }
@@ -135,8 +135,8 @@ export async function upsertUserProfile(conn, steamID, { avatar, profileurl }) {
 export async function linkUserGame(conn, steamID, appid) {
     await conn.query(
         ` INSERT
-        IGNORE INTO user_games (steam_id, appid)
-        VALUES (?, ?)`,
+              IGNORE INTO user_games (steam_id, appid)
+          VALUES (?, ?)`,
         [steamID, appid]
     );
 }
