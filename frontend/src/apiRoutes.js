@@ -1,9 +1,7 @@
-let BASE;
-if (process.env.NODE_ENV === "production") {
-    BASE = "https://mindfulmedia-production.up.railway.app/api";
-} else {
-    BASE = "http://localhost:5000/api";
-}
+const BASE =
+    process.env.NODE_ENV === "production"
+        ? "/api"                  // ✅ proxy through Vercel
+        : "http://localhost:5000/api";
 
 const apiRoutes = {
     login: `${BASE}/auth/steam/login`,

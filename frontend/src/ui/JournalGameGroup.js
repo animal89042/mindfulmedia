@@ -7,17 +7,19 @@ const JournalGameGroup = ({ game, appid, entries, setEntries }) => {
     const toggleExpanded = () => setExpanded((e) => !e);
 
     const addEntry = () => {
-        const newEntry = {
-            id: `new-${Date.now()}`, // temp ID to replace with server ID on save
+        const now = new Date().toISOString();
+        const temp = {
+            id: `new-${Date.now()}`,   // temp id; replaced after POST
+            appid,
             game_title: game,
             journal_title: "",
             entry: "",
-            created_at: new Date().toISOString(),
-            edited_at: new Date().toISOString(),
+            created_at: now,
+            edited_at: now,
             isNew: true,
-            appid: appid
         };
-        setEntries((oldEntries) => [newEntry, ...oldEntries]);
+
+        setEntries(old => [temp, ...old]);
     };
 
     return (
@@ -32,7 +34,6 @@ const JournalGameGroup = ({ game, appid, entries, setEntries }) => {
                         e.stopPropagation();
                         addEntry();
                     }}
-                    aria-label={`Add entry to ${game}`}
                 >
                     +
                 </button>
@@ -40,11 +41,7 @@ const JournalGameGroup = ({ game, appid, entries, setEntries }) => {
             {expanded && (
                 <div className="entry-list">
                     {entries.map((entry) => (
-                        <JournalEntry
-                            key={entry.id}
-                            entry={entry}
-                            setEntries={setEntries}
-                        />
+                        <JournalEntry key={entry.id} entry={entry} setEntries={setEntries} />
                     ))}
                 </div>
             )}

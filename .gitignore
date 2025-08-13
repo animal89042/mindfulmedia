@@ -1,6 +1,13 @@
+#root
+.idea
+package-lock.json
+package.json
+/node_modules
+
+#frontend
 frontend/node_modules/
-# packages from npm installa and start
-./.idea
+
+#backend
 backend/node_modules/
 backend/admin/node_modules/
 backend/.env
