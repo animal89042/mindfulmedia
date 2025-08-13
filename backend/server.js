@@ -326,6 +326,12 @@ async function startServer() {
 
     // --- API: User's Game Stats (playtime + achievements)
     app.get("/api/game/:appid/stats", requireSteamID, async (req, res) => {
+        res.set({
+            "Cache-Control": "no-store",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "CDN-Cache-Control": "no-store"
+        });
         try {
             const steam_id = req.steam_id;
             const appid = String(req.params.appid);
