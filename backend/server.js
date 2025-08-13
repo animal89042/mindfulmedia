@@ -29,6 +29,7 @@ import {
     getOwnedGames,
     getGameData,
     getPlayerSummary,
+    getUserStatsForGame,
 } from "./SteamAPI.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -322,6 +323,42 @@ async function startServer() {
         }
     });
 
+    // --- API: User's Game Stats (playtime + achievements)
+    app.get("/api/game/:appid/stats", requireSteamID, async (req, res) => {
+        try {
+            const steam_id = req.steam_id;
+            const appid = String(req.params.appid);
+
+            // 1) Get playtime from cached owned games
+            const owned = await getOwnedGames(steam_id);
+            const game = owned.find(g => String(g.appid) === appid);
+            if (!game) return res.status(404).json({ error: "Game not found" });
+
+            // 2) Try to get additional stats from Steam API
+            let extraStats = {};
+            try {
+                const fetched = await getUserStatsForGame(steam_id, appid);
+                if (fetched) extraStats = fetched;
+            } catch (err) {
+                console.warn(`No extra stats for appid ${appid}:`, err?.message || err);
+            }
+
+            const minutes = game.playtime_forever ?? 0;
+
+            res.json({
+                appid,
+                name: game.name,
+                playtimeMinutes: minutes,
+                playtimeHours: Math.round(minutes / 60),
+                stats: extraStats,
+            });
+        } catch (err) {
+            console.error("Error in /api/game/:appid/stats:", err);
+            res.status(500).json({ error: "Failed to fetch game stats" });
+        }
+    });
+
+
     // --- API: Test Endpoint ---
     app.get("/api/test", (req, res) => {
         res.json({message: "Tunnel + Steam OAuth are working!"});
@@ -488,7 +525,7 @@ async function startServer() {
     })
 
     // --- Static (dev-only)
-    if (process.env.NODE_ENV !== 'production') {
+    if (process.env.NODE_ENV === 'production') {
         const buildPath = resolve(__dirname, '../frontend/build');
         app.use(express.static(buildPath));
         app.get(/^\/(?!api).*/, (req, res) => {

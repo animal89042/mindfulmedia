@@ -116,3 +116,12 @@ export async function getPlayerSummary(steamID) {
     setCache(cacheKey, result, 60_000);
     return result;
 }
+
+export async function getUserStatsForGame(steamId, appid) {
+    const res = await fetch(
+        `https://api.steampowered.com/ISteamUserStats/GetUserStatsForGame/v2/?appid=${appid}&key=${process.env.STEAM_API_KEY}&steamid=${steamId}`
+    );
+    if (!res.ok) throw new Error(`Steam stats API error: ${res.statusText}`);
+    const data = await res.json();
+    return data?.playerstats || {};
+}
