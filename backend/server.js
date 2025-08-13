@@ -89,6 +89,7 @@ async function startServer() {
     const allowedOrigins = [
         'http://localhost:3000',
         FRONTEND_BASE,
+        BACKEND_BASE,
         /\.vercel\.app$/,
     ];
 
