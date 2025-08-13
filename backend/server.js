@@ -16,7 +16,6 @@ import {
     pool,
     initSchema,
     ensureUser,
-    upsertGame,
     linkUserGame,
     getUserGames,
     upsertUserProfile,
