@@ -42,6 +42,13 @@ const normalizeGame = (raw = {}, appid) => {
     return { ...raw, name, header_image, categories };
 };
 
+const normalizeEntry = (raw = {}) => ({
+    id: raw.jnl_id ?? raw.id ?? raw.entry_id ?? null,
+    title: raw.title ?? "",
+    body: raw.body ?? raw.entry ?? "",
+    created_at: raw.created_at ?? raw.createdAt ?? new Date().toISOString(),
+});
+
 const GamePage = () => {
     const {id} = useParams(); // Steam appid as a string
 
@@ -76,13 +83,19 @@ const GamePage = () => {
     // Fetch entries
     useEffect(() => {
         axios
-            .get(apiRoutes.getJournalApp(id), {withCredentials: true})
-            .then(({data}) => setEntries(Array.isArray(data) ? data : []))
-            .catch(() => {
-            }) // keep page usable if journals fail
-            .finally(() => {
-            });
+            .get(apiRoutes.getJournalApp(id), { withCredentials: true })
+            .then(({ data }) => {
+                const list = Array.isArray(data)
+                    ? data
+                    : Array.isArray(data?.entries)
+                        ? data.entries
+                        : [];
+                setEntries(list.map(normalizeEntry));
+            })
+            .catch(() => {})
+            .finally(() => {});
     }, [id]);
+
 
     // Fetch stats
     useEffect(() => {
@@ -95,24 +108,33 @@ const GamePage = () => {
             .finally(() => setLoadingStats(false));
     }, [id]);
 
-    const handleSaveEntry = () => {
-        const text = draft.trim();
-        if (!text) return;
+    const handleSaveEntry = async () => {
+        const body = draft.trim();
+        if (!body) return;
         setSaving(true);
         setErrorSave(null);
-        axios
-            .post(
+        try {
+            const payload = {
+                appid: Number(id),          // some backends require number
+                entry: body,                // if server expects 'entry'
+                body,                       // if server expects 'body'
+                title: title.trim() || null
+            };
+            const { data } = await axios.post(
                 apiRoutes.postJournal,
-                {appid: id, entry: text, title: title.trim()},
-                {withCredentials: true}
-            )
-            .then(({data}) => {
-                setEntries((prev) => [data, ...prev]);
-                setTitle("");
-                setDraft("");
-            })
-            .catch(() => setErrorSave("Could not save entry"))
-            .finally(() => setSaving(false));
+                payload,
+                { withCredentials: true }
+            );
+
+            const saved = normalizeEntry(data?.journal ?? data);
+            setEntries(prev => [saved, ...prev]);
+            setTitle("");
+            setDraft("");
+        } catch (err) {
+            setErrorSave(err.response?.data?.error ?? "Could not save entry");
+        } finally {
+            setSaving(false);
+        }
     };
 
     if (loadingGame) return <div className="game-page loading">Loading…</div>;
@@ -175,11 +197,11 @@ const GamePage = () => {
                     </button>
                     <div className="entries">
                         {entries.length ? (
-                            entries.map((e) => (
-                                <div className="entry" key={e.jnl_id}>
+                            entries.map(e => (
+                                <div className="entry" key={e.id ?? e.jnl_id ?? `${e.created_at}-${Math.random()}`}>
                                     <div className="entry-date">{new Date(e.created_at).toLocaleString()}</div>
                                     {e.title && <strong>{e.title}</strong>}
-                                    <div>{e.body ?? e.entry}</div>
+                                    <div>{e.body || e.entry}</div>
                                 </div>
                             ))
                         ) : (
