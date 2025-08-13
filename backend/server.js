@@ -32,6 +32,19 @@ import {
     getUserStatsForGame,
 } from "./SteamAPI.js";
 
+function extractSteamId(req) {
+    const u = req.user || {};
+    const fromUser =
+        u.id || u.steamid || u?.profile?._json?.steamid || u?._json?.steamid;
+    if (fromUser) return String(fromUser);
+    const claimed = req.query?.['openid.claimed_id'] || req.body?.['openid.claimed_id'];
+    if (claimed) {
+        const m = String(claimed).match(/(\d{17})$/);
+        if (m) return m[1];
+    }
+    return null;
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -114,6 +127,21 @@ async function startServer() {
     app.use(passport.initialize());
     app.use(passport.session());
 
+    app.use((req, _res, next) => {
+        const current = req.steam_id || req.session?.steam_id;
+        if (current) {
+            req.steam_id = String(current);
+            if (!req.session.steam_id) req.session.steam_id = String(current);
+            return next();
+        }
+        const extracted = extractSteamId(req);
+        if (extracted) {
+            req.steam_id = extracted;
+            req.session.steam_id = extracted;
+        }
+        next();
+    });
+
     passport.serializeUser((user, done) => done(null, user));
     passport.deserializeUser((user, done) => done(null, user));
 
@@ -133,40 +161,35 @@ async function startServer() {
 
     app.get(
         "/api/auth/steam/return",
-        passport.authenticate("steam", {failureRedirect: "/"}),
-        (req, res, next) => {
-            res.set({
-                "Cache-Control": "no-store",
-                "Pragma": "no-cache",
-                "Expires": "0",
-                "CDN-Cache-Control": "no-store"
-            });
-            const steam_id = req.user?.id;
-            if (!steam_id) return res.redirect("/login/error");
-            req.login(req.user, async (err) => {
-                if (err) {
-                    console.error("Login error:", err);
-                    return next(err);
-                }
-                let conn;
+        passport.authenticate("steam", { failureRedirect: "/?login=failed" }),
+        async (req, res) => {
+            try {
+                const steam_id = extractSteamId(req);
+                if (!steam_id) return res.redirect("/?login=bad_profile");
+
+                // persist id in session for brand-new users
+                req.session.steam_id = steam_id;
+                req.steam_id = steam_id;
+
+                // create/attach identity + profile, idempotent
+                const conn = await pool.getConnection();
                 try {
-                    const profile = await getPlayerSummary(steam_id);
-                    conn = await pool.getConnection();
-                    await ensureUser(conn, steam_id);
-                    if (profile) {
-                        await upsertUserProfile(conn, steam_id, profile);
-                    }
-                } catch (e) {
-                    console.error("Could not fetch/store Steam profile:", e);
+                    await ensureUser(conn, steam_id, req.user?.displayName || null);
+                    await upsertUserProfile(conn, steam_id, {
+                        personaname: req.user?.displayName || null,
+                        avatar: req.user?.photos?.[0]?.value || null,
+                        profileurl: req.user?._json?.profileurl || null,
+                    });
                 } finally {
-                    conn?.release();
+                    conn.release();
                 }
-                // Make sure session is saved before redirect
-                await new Promise((resolve, reject) =>
-                    req.session.save((e2) => (e2 ? reject(e2) : resolve()))
-                );
-                res.redirect(FRONTEND_BASE);
-            });
+
+                // back to app (first-party domain)
+                res.redirect("/");
+            } catch (err) {
+                console.error("Steam return error:", err);
+                res.redirect("/?login=error");
+            }
         }
     );
 
