@@ -388,36 +388,55 @@ async function startServer() {
             "Expires": "0",
             "CDN-Cache-Control": "no-store"
         });
+
+        const steam_id = req.steam_id;
+        const appid = String(req.params.appid);
+
         try {
-            const steam_id = req.steam_id;
-            const appid = String(req.params.appid);
+            // 1) Try DB first (fast)
+            const [rows] = await pool.query(
+                `SELECT ugl.playtime_minutes AS minutes
+                 FROM user_game_library ugl
+                          JOIN platform_games pg ON pg.id = ugl.platform_game_id
+                 WHERE ugl.identity_id = (SELECT id
+                                          FROM user_identities
+                                          WHERE platform = 'steam'
+                                            AND platform_user_id = ?
+                                          LIMIT 1)
+                   AND pg.platform = 'steam'
+                   AND pg.platform_game_id = ?
+                 LIMIT 1`,
+                [steam_id, appid]
+            );
 
-            // 1) Get playtime from cached owned games
-            const owned = await getOwnedGames(steam_id);
-            const game = owned.find(g => String(g.appid) === appid);
-            if (!game) return res.status(404).json({error: "Game not found"});
+            let minutes = rows?.[0]?.minutes ?? null;
 
-            // 2) Try to get additional stats from Steam API
+            // 2) Fallback to Steam if DB has no row
+            if (minutes == null) {
+                const owned = await getOwnedGames(steam_id); // [{appid, playtime_forever, name, ...}]
+                const game = owned?.find(g => String(g.appid) === appid);
+                if (game) minutes = game.playtime_forever ?? 0;
+                else minutes = 0; // don’t 404; let UI show 0
+            }
+
+            // 3) Optional: achievements/extra stats
             let extraStats = {};
             try {
                 const fetched = await getUserStatsForGame(steam_id, appid);
                 if (fetched) extraStats = fetched;
-            } catch (err) {
-                console.warn(`No extra stats for appid ${appid}:`, err?.message || err);
+            } catch (e) {
+                // swallow; achievements are optional
             }
 
-            const minutes = game.playtime_forever ?? 0;
-
-            res.json({
+            return res.json({
                 appid,
-                name: game.name,
                 playtimeMinutes: minutes,
                 playtimeHours: Math.floor(minutes / 60),
-                stats: extraStats,
+                stats: extraStats
             });
         } catch (err) {
-            console.error("Error in /api/game/:appid/stats:", err);
-            res.status(500).json({error: "Failed to fetch game stats"});
+            console.error("Error in /api/game/:appid/stats:", err?.message || err);
+            return res.status(503).json({ ok:false, error: "Failed to fetch game stats" });
         }
     });
 
