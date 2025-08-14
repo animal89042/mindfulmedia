@@ -1,8 +1,13 @@
 {
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "https://mindfulmedia-production.up.railway.app/api/$1" }
+  ],
+  "headers": [
     {
-      "source": "/api/:path*",
-      "destination": "https://mindfulmedia-production.up.railway.app/api/:path*"
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
     }
   ]
 }
