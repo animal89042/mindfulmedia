@@ -7,13 +7,15 @@ const ProfilePage = ({ user, checked, setUser }) => {
     const navigate = useNavigate();
 
     //Handle sign out
-    const handleLogout = () => {
-        axios
-            .post(apiRoutes.logout, {}, {withCredentials: true})
-            .finally(() => {
-                setUser(null);
-                navigate("/");
-            });
+    const handleLogout = async () => {
+        try {
+            await axios.post(apiRoutes.logout, {}, { withCredentials: true });
+        } catch (err) {
+            console.warn('logout failed', err);
+        } finally {
+            setUser(null);
+            window.location.assign('/');
+        }
     };
 
     useEffect(() => {

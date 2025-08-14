@@ -51,7 +51,6 @@ const __dirname = dirname(__filename);
 const { STEAM_API_KEY, PORT = 5000 } = process.env;
 
 const isProd = process.env.NODE_ENV === 'production';
-
 const FRONTEND_BASE = isProd ? process.env.PUBLIC_URL : "http://localhost:3000";
 const BACKEND_BASE = isProd ? process.env.PUBLIC_API_URL : `http://localhost:${PORT}`;
 
@@ -87,6 +86,7 @@ async function startServer() {
     // 3) CORS (exact origins + credentials)
     const allowedOrigins = [
         'http://localhost:3000',
+        'http://localhost:5000/',
         FRONTEND_BASE,
         BACKEND_BASE,
         /\.vercel\.app$/,
@@ -111,19 +111,17 @@ async function startServer() {
 
     // 4) Sessions (TiDB-backed)
     app.use(session({
-        store: sessionStore,             // your existing store
-        name: "mm.sid",
         secret: process.env.SESSION_SECRET || "mindfulmediaBMG",
         resave: false,
         saveUninitialized: false,
-        proxy: true,                   // important when setting secure cookies behind proxy
+        store: sessionStore,              // your MySQL/TiDB session store
         cookie: {
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production",  // true on Vercel/Railway
-            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-            maxAge: 1000 * 60 * 60 * 24 * 7
-            // DO NOT set `domain` for *.vercel.app — it's a public suffix and will be rejected
-        }
+            secure: isProd,               // true in prod, false in dev
+            sameSite: isProd ? 'none' : 'lax',
+            path: '/',                    // make sure it’s shared for all routes
+            maxAge: 1000 * 60 * 60 * 24 * 7,
+        },
     }));
 
     // 5) Passport (Steam OpenID)
@@ -151,8 +149,8 @@ async function startServer() {
     passport.use(
         new SteamStrategy(
             {
-                returnURL: `${BACKEND_BASE}/api/auth/steam/return`,
-                realm:  BACKEND_BASE,
+                returnURL: `${FRONTEND_BASE}/api/auth/steam/return`,
+                realm:  FRONTEND_BASE,
                 apiKey: STEAM_API_KEY,
             },
             (identifier, profile, done) => done(null, profile)
@@ -620,21 +618,18 @@ async function startServer() {
     })
 
     // Log Out
-    app.post('/api/logout', (req, res, next) => {
-        const cookieOpts = {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-            path: '/',
-        };
-
+    app.post('/api/logout', (req, res) => {
         req.logout(err => {
-            if (err) return next(err);
-            req.session.destroy(err2 => {
-                if (err2) return next(err2);
-                res.clearCookie('mm.sid', cookieOpts);
-                res.redirect('/');
-            });
+            if (err) return res.status(500).json({ error: 'Logout failed' });
+            if (req.session) {
+                req.session.destroy(() => {
+                    res.clearCookie('mm.sid', {/* httpOnly, sameSite, secure, path:'/' */});
+                    res.json({ ok: true });
+                });
+            } else {
+                res.clearCookie('mm.sid', {/* ... */});
+                res.json({ ok: true });
+            }
         });
     });
 

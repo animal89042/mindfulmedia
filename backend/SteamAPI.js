@@ -1,6 +1,9 @@
 import axios from "axios";
 
 const STEAM_API_KEY = process.env.STEAM_API_KEY;
+if (!STEAM_API_KEY) {
+    throw new Error("Missing STEAM_API_KEY in backend environment");
+}
 
 // axios instance with timeout & tiny retry helper
 const http = axios.create({
@@ -120,10 +123,9 @@ export async function getPlayerSummary(steamID) {
 }
 
 export async function getUserStatsForGame(steamId, appid) {
-    const res = await fetch(
-        `https://api.steampowered.com/ISteamUserStats/GetUserStatsForGame/v2/?appid=${appid}&key=${process.env.STEAM_API_KEY}&steamid=${steamId}`
-    );
-    if (!res.ok) throw new Error(`Steam stats API error: ${res.statusText}`);
-    const data = await res.json();
+    const url = "https://api.steampowered.com/ISteamUserStats/GetUserStatsForGame/v2/";
+    const params = { appid, key: STEAM_API_KEY, steamid: steamId };
+
+    const data = await withRetry(async () => (await http.get(url, { params })).data);
     return data?.playerstats || {};
 }
