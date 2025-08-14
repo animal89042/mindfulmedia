@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "https://mindfulmedia-production.up.railway.app/api/$1" }
+    { "source": "/api/(.*)", "destination": "https://mindfulmedia-production-g.up.railway.app/api/$1" }
   ],
   "headers": [
     {
