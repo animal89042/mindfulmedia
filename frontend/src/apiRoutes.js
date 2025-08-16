@@ -1,4 +1,7 @@
-const BASE = "/api";
+const isProd = process.env.NODE_ENV === 'production';
+
+const BASE = isProd ? "https://mindfulmedia-production-g.up.railway.app/api": "/api";
+
 
 const apiRoutes = {
     login: `${BASE}/auth/steam/login`,
