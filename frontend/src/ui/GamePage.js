@@ -101,10 +101,9 @@ const GamePage = () => {
     useEffect(() => {
         setLoadingStats(true);
         axios
-            .get(`/api/game/${id}/stats`, {withCredentials: true})
-            .then(({data}) => setStats(data))
-            .catch(() => {
-            })
+            .get(apiRoutes.getGameStats(id), { withCredentials: true })
+            .then(({ data }) => setStats(data))
+            .catch(err => console.error('[stats]', err?.response?.status || err.message))
             .finally(() => setLoadingStats(false));
     }, [id]);
 
