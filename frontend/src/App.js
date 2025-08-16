@@ -12,7 +12,7 @@ import HomePage from "./HomePage";
 import AdminSidebar from './AdminSidebar';
 
 function App() {
-    // 1) Central auth state
+    // 1) Central auth.js state
     const [user, setUser]       = useState(null);
     const [checked, setChecked] = useState(false);
 
@@ -28,7 +28,10 @@ function App() {
 
     useEffect(() => {
         axios
-            .get(apiRoutes.getTestConnection)
+            .get(apiRoutes.getTestConnection, { withCredentials: true })
+            .catch(err => {
+                console.error('[test connection failed]', err?.response?.data || err.message);
+            });
     }, []);
 
     //this is a test for autodeploying using vercel

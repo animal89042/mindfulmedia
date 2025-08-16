@@ -1,15 +1,48 @@
-// database.js
 import mysql from "mysql2/promise";
 import dotenv from "dotenv";
-import {dirname, resolve} from "path";
-import {fileURLToPath} from "url";
 import fs from "fs";
+import { dirname, resolve } from "path";
+import { fileURLToPath } from "url";
 
+// Load backend/.env
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+dotenv.config({ path: resolve(__dirname, "../../.env") });
 
-// Always load the backend/.env
-dotenv.config({path: resolve(__dirname, ".env")});
+export async function initSchema(initFilePath) {
+    const sqlPath = initFilePath || resolve(__dirname, "init.sql"); // lives in /src/db/
+    if (!fs.existsSync(sqlPath)) {
+        console.warn("[initSchema] No init.sql found at", sqlPath);
+        return;
+    }
+    const raw = fs.readFileSync(sqlPath, "utf8");
+    const statements = raw
+        .split(/;\s*$/m)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    const conn = await pool.getConnection();
+    try {
+        for (const stmt of statements) {
+            await conn.query(stmt);
+        }
+    } finally {
+        conn.release();
+    }
+    console.log("[initSchema] Applied", statements.length, "statements");
+}
+
+export function extractSteamId(req) {
+    const u = req.user || {};
+    const fromUser =
+        u.id || u.steamid || u?.profile?._json?.steamid || u?._json?.steamid;
+    if (fromUser) return String(fromUser);
+    const claimed = req.query?.["openid.claimed_id"] || req.body?.["openid.claimed_id"];
+    if (claimed) {
+        const m = String(claimed).match(/(\d{17})$/);
+        if (m) return m[1];
+    }
+    return null;
+}
 
 const {
     DB_HOST,
@@ -41,30 +74,6 @@ export const pool = mysql.createPool({
 });
 
 console.log("[DB] host:", DB_HOST, "port:", DB_PORT, "TLS:", TIDB_ENABLE_SSL);
-
-// Run init.sql once on boot
-export async function initSchema(initFilePath) {
-    const sqlPath = initFilePath || resolve(__dirname, "init.sql");
-    if (!fs.existsSync(sqlPath)) {
-        console.warn("[initSchema] No init.sql found at", sqlPath);
-        return;
-    }
-    const raw = fs.readFileSync(sqlPath, "utf8");
-    const statements = raw
-        // naive split on semicolon at end-of-line; keep your statements simple
-        .split(/;\s*$/m)
-        .map((s) => s.trim())
-        .filter(Boolean);
-    const conn = await pool.getConnection();
-    try {
-        for (const stmt of statements) {
-            await conn.query(stmt);
-        }
-    } finally {
-        conn.release();
-    }
-    console.log("[initSchema] Applied", statements.length, "statements");
-}
 
 /* =========================
    Legacy helpers (kept)
@@ -132,12 +141,12 @@ export async function upsertUserProfile(conn, steamID, { avatar, profileurl }) {
 }
 
 /* Link a user to a game. */
-export async function linkUserGame(conn, steamID, appid) {
-    await conn.query(
-        ` INSERT
-              IGNORE INTO user_games (steam_id, appid)
-          VALUES (?, ?)`,
-        [steamID, appid]
+export async function linkUserGame(conn, identityId, appid) {
+    await conn.query(`
+        INSERT IGNORE 
+        INTO user_games (identity_id, appid) 
+        VALUES (?, ?)
+        `, [identityId, appid]
     );
 }
 
@@ -184,10 +193,11 @@ export async function getOrCreateSteamIdentity(steamID) {
 export async function upsertPlatformGameSimple(platform, platformGameId, name, iconUrl) {
     const [r] = await pool.query(
         `INSERT INTO platform_games (platform, platform_game_id, name, icon_url)
-         VALUES (?, ?, ?, ?) ON DUPLICATE KEY
-        UPDATE name=
-        VALUES (name), icon_url=
-        VALUES (icon_url), last_seen=NOW()`,
+        VALUES (?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            name = VALUES(name),
+            icon_url = VALUES(icon_url),
+            last_seen = NOW()`,
         [platform, String(platformGameId), name || null, iconUrl || null]
     );
     if (r.insertId) return r.insertId;

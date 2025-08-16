@@ -1,7 +1,5 @@
 #root
 .idea
-package-lock.json
-package.json
 /node_modules
 
 #frontend
@@ -10,5 +8,4 @@ frontend/.env
 
 #backend
 backend/node_modules/
-backend/admin/node_modules/
 backend/.env
