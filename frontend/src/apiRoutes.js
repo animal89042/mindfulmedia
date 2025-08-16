@@ -8,6 +8,7 @@ const apiRoutes = {
     getUser: `${BASE}/me`,
     getGame: (appid) => `${BASE}/game/${appid}`, //fetch game details
     getGames:  `${BASE}/games`,
+    getGameStats: (appid) => `${BASE}/game/${appid}/stats`,
     getJournalApp: (appid) => `${BASE}/journals?appid=${appid}`,
     getJournal: `${BASE}/journals`,
     getAdminUsers: `${BASE}/admin/users`,
