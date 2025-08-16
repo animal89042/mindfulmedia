@@ -5,10 +5,11 @@ module.exports = function (app) {
     app.use(
         '/api',
         createProxyMiddleware({
-            target: 'http://localhost:5000',
+            target: 'http://localhost:5000', // your backend dev port
             changeOrigin: true,
-            logLevel: 'debug',
+            secure: false,
             cookieDomainRewrite: 'localhost',
+            logLevel: 'silent',
         })
     );
 };
