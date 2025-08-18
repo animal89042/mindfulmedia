@@ -9,13 +9,12 @@ import { PORT, STEAM_API_KEY, BACKEND_BASE, FRONTEND_BASE, SESSION_SECRET, isPro
 
 import authRoutes from "../src/routes/auth.js";
 import gamesRoutes from "../src/routes/games.js";
-import journalRoutes from "../src/routes/journal.js";
+import journalRoutes from "./routes/journals.js";
 import userRoutes from "../src/routes/user.js";
 
 import {
     pool,
     initSchema,
-    extractSteamId,
 } from "./db/database.js";
 
 // Background warmup: optional migrations + open DB/session paths
@@ -98,21 +97,6 @@ async function startServer() {
     // 5) Passport (Steam OpenID)
     app.use(passport.initialize());
     app.use(passport.session());
-
-    app.use((req, _res, next) => {
-        const current = req.steam_id || req.session?.steam_id;
-        if (current) {
-            req.steam_id = String(current);
-            if (!req.session.steam_id) req.session.steam_id = String(current);
-            return next();
-        }
-        const extracted = extractSteamId(req);
-        if (extracted) {
-            req.steam_id = extracted;
-            req.session.steam_id = extracted;
-        }
-        next();
-    });
 
     passport.serializeUser((user, done) => done(null, user));
     passport.deserializeUser((user, done) => done(null, user));

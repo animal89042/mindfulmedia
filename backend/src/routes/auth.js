@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { pool, ensureUser, upsertUserProfile, extractSteamId } from "../db/database.js";
+import { getOrCreateIdentity } from "../db/database.js";
 import { isProd, FRONTEND_BASE } from "../config/env.js";
 import passport from "passport";
 
@@ -11,30 +11,27 @@ router.get(
     "/auth/steam/return",
     passport.authenticate("steam", {
         failureRedirect: `${FRONTEND_BASE}/?login=failed`,
-        session: true, // default, but keep explicit
+        session: true,
     }),
     async (req, res) => {
         try {
-            const steam_id = extractSteamId(req);
-            if (!steam_id) return res.redirect(`${ FRONTEND_BASE }/?login=bad_profile`);
+            const steamId = req.user?.id || req.session?.passport?.user?.id || null;
+            if (!steamId) return res.redirect(`${ FRONTEND_BASE }/?login=bad_profile`);
+
+            const { identityId, userId } = await getOrCreateIdentity({
+                platform: "steam",
+                platformUserId: steamId,
+                usernameHint: req.user?.displayName,
+                gamertag: req.user?.displayName,
+                avatarUrl: req.user?.photos?.[0]?.value,
+                profileUrl: req.user?._json?.profileurl,
+            });
 
             // Stash for convenience
-            req.session.steam_id = steam_id;
-            req.steam_id = steam_id;
+            req.session.steam_id = String(steamId);
+            req.session.identity_id = identityId;
+            req.session.user_id = userId;
 
-            // Optional: persist/refresh user profile
-            const conn = await pool.getConnection();
-            try {
-                await ensureUser(conn, steam_id, req.user?.displayName || null);
-                await upsertUserProfile(conn, steam_id, {
-                    avatar: req.user?.photos?.[0]?.value || null,
-                    profileurl: req.user?._json?.profileurl || null,
-                });
-            } finally {
-                conn.release();
-            }
-
-            // Success → go to app
             return res.redirect(`${ FRONTEND_BASE }/`);
         } catch (e) {
             console.error("[steam return] handler error:", e);

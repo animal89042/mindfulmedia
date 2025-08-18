@@ -1,12 +1,12 @@
 import { Router } from "express";
-import { requireSteamID, requireAdmin } from "../middleware/AuthMiddleware.js";
-import { pool, upsertUserProfile } from "../db/database.js";
+import { requireIdentity, requireAdmin } from "../middleware/AuthMiddleware.js";
+import { pool } from "../db/database.js";
 import { getPlayerSummary } from "../platform/SteamAPI.js";
 
 const router = Router();
 
 // --- API: Verify Login ---
-router.get("/me", requireSteamID, async (req, res) => {
+router.get("/me", requireIdentity, async (req, res) => {
     res.set({
         "Cache-Control": "no-store",
         "Pragma": "no-cache",
@@ -17,16 +17,13 @@ router.get("/me", requireSteamID, async (req, res) => {
     let conn;
     try {
         conn = await pool.getConnection();
-        const [[row]] = await conn.query(
-            `
-                    SELECT u.role
-                    FROM users u
-                             JOIN user_identities ui ON ui.user_id = u.id
-                    WHERE ui.platform = 'steam'
-                      AND ui.platform_user_id = ?
-                    LIMIT 1
-                `,
-            [steam_id]
+        const [[row]] = await pool.query(
+            `SELECT u.role
+             FROM users u
+             JOIN user_identities ui ON ui.user_id = u.id
+             WHERE ui.id = ?
+             LIMIT 1`,
+            [req.identity_id]
         );
         res.json({
             steam_id,
@@ -49,33 +46,48 @@ router.get("/me", requireSteamID, async (req, res) => {
 });
 
 // --- Admin: list all users ---
-router.get("/admin/users", requireSteamID, requireAdmin, async (req, res) => {
+router.get("/admin/users", requireIdentity, requireAdmin, async (_req, res) => {
     res.set({
         "Cache-Control": "no-store",
         "Pragma": "no-cache",
         "Expires": "0",
-        "CDN-Cache-Control": "no-store"
+        "CDN-Cache-Control": "no-store",
     });
+
     try {
+        // users: username, avatar, profile_url, role
+        // user_identities: id (identity id), user_id (FK -> users.id)
         const [rows] = await pool.query(
             `
-                    SELECT ui.platform_user_id AS id,
-                           u.username          AS name,
-                           u.role
-                    FROM users u
-                             JOIN user_identities ui ON ui.user_id = u.id
-                    WHERE ui.platform = 'steam'
-                `
+                SELECT
+                    ui.id            AS id,
+                    u.username       AS username,
+                    u.username       AS display_name,
+                    u.role           AS role,
+                    u.avatar         AS avatar
+                FROM user_identities ui
+                         JOIN users u ON u.id = ui.user_id
+                ORDER BY u.username ASC
+            `
         );
-        res.json(rows);
+
+        res.json({
+            users: rows.map((r) => ({
+                id: r.id,
+                username: r.username,
+                display_name: r.display_name, // for the sidebar
+                role: r.role,
+                avatar: r.avatar || null,
+            })),
+        });
     } catch (err) {
         console.error("Error fetching users for admin:", err);
-        res.status(500).json({error: "Internal server error"});
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
 // --- API: Player Summary ---
-router.get("/playersummary", requireSteamID, async (req, res) => {
+router.get("/playersummary", requireIdentity, async (req, res) => {
     res.set({
         "Cache-Control": "no-store",
         "Pragma": "no-cache",
@@ -87,17 +99,14 @@ router.get("/playersummary", requireSteamID, async (req, res) => {
     try {
         conn = await pool.getConnection();
 
-        const [[userRow]] = await conn.query(
-            `
-                    SELECT u.username AS persona_name,
-                           u.avatar,
-                           u.profile_url
-                    FROM users u
-                             JOIN user_identities ui ON ui.user_id = u.id
-                    WHERE ui.platform = 'steam'
-                      AND ui.platform_user_id = ?
-                `,
-            [steam_id]
+        const [[userRow]] = await pool.query(
+            `SELECT u.username AS persona_name,
+                    u.avatar,
+                    u.profile_url
+            FROM users u
+            JOIN user_identities ui ON ui.user_id = u.id
+            WHERE ui.id = ?
+            `, [req.identity_id]
         );
 
         let profile = userRow;

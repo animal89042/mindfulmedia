@@ -31,18 +31,6 @@ export async function initSchema(initFilePath) {
     console.log("[initSchema] Applied", statements.length, "statements");
 }
 
-export function extractSteamId(req) {
-    const u = req.user || {};
-    const fromUser =
-        u.id || u.steamid || u?.profile?._json?.steamid || u?._json?.steamid;
-    if (fromUser) return String(fromUser);
-    const claimed = req.query?.["openid.claimed_id"] || req.body?.["openid.claimed_id"];
-    if (claimed) {
-        const m = String(claimed).match(/(\d{17})$/);
-        if (m) return m[1];
-    }
-    return null;
-}
 
 const {
     DB_HOST,
@@ -75,122 +63,107 @@ export const pool = mysql.createPool({
 
 console.log("[DB] host:", DB_HOST, "port:", DB_PORT, "TLS:", TIDB_ENABLE_SSL);
 
-/* =========================
-   Legacy helpers (kept)
-   ========================= */
-
-/* Ensure a user row exists. */
-// 1) Create (or fetch) a user for a Steam account in a way that always satisfies NOT NULL/UNIQUE(username)
-export async function ensureUser(conn, steamID, displayName) {
-    // If an identity already exists, return that user
-    const [idRows] = await conn.query(
-        `SELECT ui.user_id AS id
-         FROM user_identities ui
-         WHERE ui.platform='steam' AND ui.platform_user_id=?
-             LIMIT 1`,
-        [String(steamID)]
-    );
-    if (idRows.length) return idRows[0].id;
-
-    // Create a user with a guaranteed-unique username
-    const seedUsername = `steam_${String(steamID)}`;
-    await conn.query(
-        `INSERT IGNORE INTO users (username, role) VALUES (?, 'user')`,
-        [seedUsername]
-    );
-
-    // Look up the user id (works whether the row was inserted just now or already existed)
-    const [uRows] = await conn.query(
-        `SELECT id, username FROM users WHERE username=? LIMIT 1`,
-        [seedUsername]
-    );
-    const userId = uRows[0].id;
-
-    // Create the identity row (idempotent)
-    await conn.query(
-        `INSERT IGNORE INTO user_identities (user_id, platform, platform_user_id)
-     VALUES (?, 'steam', ?)`,
-        [userId, String(steamID)]
-    );
-
-    // Optionally try to rename username to Steam display name if it's free
-    const pretty = (displayName || '').trim();
-    if (pretty) {
-        await conn.query(
-            `UPDATE users u
-             SET u.username = ?
-             WHERE u.id = ?
-               AND NOT EXISTS (SELECT 1 FROM users x WHERE x.username = ? AND x.id <> u.id)`,
-            [pretty, userId, pretty]
-        );
+export async function getOrCreateIdentity({
+    platform,
+    platformUserId,
+    usernameHint,
+    gamertag,
+    avatarUrl,
+    profileUrl,
+}) {
+    if (!platform || platformUserId == null) {
+        throw new Error("getOrCreateIdentity: platform and platformUserId are required")
     }
+    const plat = String(platform).toLowerCase();
+    const platUId = String(platformUserId);
 
-    return userId;
-}
-
-// Only update columns that exist in prod: avatar/profile_url (no persona_name)
-export async function upsertUserProfile(conn, steamID, { avatar, profileurl }) {
-    await conn.query(
-        `UPDATE users u
-            JOIN user_identities ui
-            ON ui.user_id = u.id
-         SET u.avatar = ?, u.profile_url = ?
-         WHERE ui.platform='steam' AND ui.platform_user_id=?`,
-        [avatar ?? null, profileurl ?? null, String(steamID)]
-    );
-}
-
-/* Link a user to a game. */
-export async function linkUserGame(conn, identityId, appid) {
-    await conn.query(`
-        INSERT IGNORE 
-        INTO user_games (identity_id, appid) 
-        VALUES (?, ?)
-        `, [identityId, appid]
-    );
-}
-
-/* Get all games for a user. */
-export async function getUserGames(_pool, steamID) {
-    const [rows] = await pool.query(
-        `
-            SELECT vil.game_id          AS appid,
-                   vil.game_name        AS title,
-                   vil.icon_url         AS imageUrl,
-                   vil.playtime_minutes AS playtime
-            FROM v_identity_library vil
-                     JOIN user_identities ui
-                          ON ui.id = vil.identity_id
-            WHERE ui.platform = 'steam'
-              AND ui.platform_user_id = ?
-            ORDER BY vil.game_name
-        `,
-        [String(steamID)]
-    );
-    return rows;
-}
-/* =========================
-   NEW helpers for multi-platform
-   ========================= */
-
-// Existing identity?
-export async function getOrCreateSteamIdentity(steamID) {
     const conn = await pool.getConnection();
     try {
-        const userId = await ensureUser(conn, steamID, null);
-        // return the identity id (create if missing)
-        const [idRows] = await conn.query(
-            `SELECT id FROM user_identities 
-        WHERE platform='steam' AND platform_user_id=? LIMIT 1`,
-            [String(steamID)]
-        );
-        return idRows[0]?.id ?? null;
-    } finally {
-        conn.release();
-    }
-}
+        await conn.beginTransaction();
 
-export async function upsertPlatformGameSimple(platform, platformGameId, name, iconUrl) {
+        // Identity already exists
+        const [[existing]] = await conn.query(
+            `SELECT id AS identityId, user_id AS userId
+            FROM user_identities
+            WHERE platform = ? AND platform_user_id = ?
+            LIMIT 1`,
+            [plat, platUId]
+        );
+        // Refresh user contect
+        if (existing) {
+            if (gamertag || avatarUrl) {
+                await conn.query(
+                    `UPDATE user_identities
+                    SET gamertag = COALESCE(?, gamertag),
+                    avatar_url = COALESCE(?, avatar_url)
+                    WHERE id = ?`,
+                    [gamertag ?? null, avatarUrl ?? null, existing.identityId]
+                );
+            }
+            if (profileUrl) {
+                await conn.query(
+                    `UPDATE users u
+                    JOIN user_identities ui ON ui.user_id = u.id
+                    SET u.profile_url = COALESCE(?, u.profile_url)
+                    WHERE ui.id = ?`,
+                    [profileUrl, existing.identityId]
+                );
+            }
+            await conn.commit();
+            return { identityId: existing.identityId, userId: existing.userId, platform: plat, platformUserId: platUId };
+        }
+
+        //Ensure User
+        const fallbackUsername = `${plat}_${platUId}`;
+        const desiredUsername = (usernameHint || fallbackUsername).trim().slice(0, 255);
+
+        let userId;
+        {
+            const [[u]] = await conn.query(
+              `SELECT id FROM users WHERE username=? LIMIT 1`, [desiredUsername]
+            );
+            if (u) {
+                userId = u.id;
+            } else {
+                const [ins] = await conn.query(
+                    `INSERT INTO users (username, avatar, profile_url, role) VALUES (?, ?, ?, 'user')`,
+                    [desiredUsername, avatarUrl ?? null, profileUrl ?? null]
+                );
+                userId = ins.insertId;
+            }
+        }
+
+        // Create identity (unique on platform+platform_user_id)
+        let identityId;
+        try {
+            const [insId] = await conn.query(
+                `INSERT INTO user_identities (user_id, platform, platform_user_id, gamertag, avatar_url)
+                VALUES (?, ?, ?, ?, ?)`,
+                [userId, plat, platUId, gamertag ?? null, avatarUrl ?? null]
+            );
+            identityId = insId.insertId;
+        } catch (e) {
+            // Check if user was created in parallel
+            const [[r]] = await conn.query(
+                `SELECT id AS identityId FROM user_identities WHERE platform=? AND platform_user_id=? LIMIT 1`,
+                [plat, platUId]
+            );
+            if (!r) throw e;
+            identityId = r.identityId;
+        }
+
+        await conn.commit();
+        return { identityId, userId, platform: plat, platformUserId: platUId };
+        } catch (err) {
+            await conn.rollback();
+            throw err;
+        } finally {
+            conn.release();
+        }
+    }
+
+// Checks that a game exists on a platform
+export async function ensureGame(platform, platformGameId, name, iconUrl) {
     const [r] = await pool.query(
         `INSERT INTO platform_games (platform, platform_game_id, name, icon_url)
         VALUES (?, ?, ?, ?)
@@ -205,7 +178,7 @@ export async function upsertPlatformGameSimple(platform, platformGameId, name, i
         `SELECT id
          FROM platform_games
          WHERE platform = ?
-           AND platform_game_id = ? LIMIT 1`,
+         AND platform_game_id = ? LIMIT 1`,
         [platform, String(platformGameId)]
     );
     return row.id;
@@ -214,9 +187,25 @@ export async function upsertPlatformGameSimple(platform, platformGameId, name, i
 export async function linkLibrary(identityId, platformGameRowId, minutes) {
     await pool.query(
         `INSERT INTO user_game_library (identity_id, platform_game_id, playtime_minutes, last_refreshed)
-         VALUES (?, ?, ?, NOW()) ON DUPLICATE KEY
-        UPDATE playtime_minutes=
-        VALUES (playtime_minutes), last_refreshed=NOW()`,
+         VALUES (?, ?, ?, NOW())
+         ON DUPLICATE KEY UPDATE
+            playtime_minutes = VALUES(playtime_minutes),
+            last_refreshed   = NOW()`,
         [identityId, platformGameRowId, minutes ?? 0]
     );
+}
+
+export async function getLibraryByIdentityId(identityId, platform = "steam") {
+    const [rows] = await pool.query(
+        `SELECT vil.game_id          AS appid,
+                vil.game_name        AS title,
+                vil.icon_url         AS imageUrl,
+                vil.playtime_minutes AS playtime
+        FROM v_identity_library vil
+        WHERE vil.identity_id = ?
+        AND vil.platform = ?
+        ORDER BY vil.game_name`,
+        [identityId, platform]
+    );
+    return rows;
 }
