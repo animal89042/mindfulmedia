@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* Dark theme colors */
 :root {
   --bg-color: #121212;

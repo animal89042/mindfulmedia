@@ -1,39 +1,61 @@
-import { pool } from '../db/database.js';
+import {pool, getOrCreateIdentity} from '../db/database.js';
 
-export const requireSteamID = (req, res, next) => {
-    const steamId =
-        req.user?.id ||
-        req.session?.passport?.user?.id ||
-        null;
+export async function requireIdentity(req, res, next) {
+    try {
+        const steamId = req.user?.id || req.session?.passport?.user?.id || null;
 
-    if (!steamId) {
-        return res.status(401).json({error: "Not authenticated"});
+        if (!steamId) {
+            return res.status(401).json({error: "Not authenticated"});
+        }
+
+        const {identityId, userId, platformUserId} = await getOrCreateIdentity({
+            platform: "steam",
+            platformUserId: steamId,
+            usernameHint: req.user?.displayName,
+            gamertag: req.user?.displayName,
+            avatarUrl: req.user?.photos?.[0]?.value,
+            profileUrl: req.user?._json?.profileurl,
+        });
+
+        // Attach for downstream handlers
+        req.identity_id = identityId;
+        req.user_id = userId;
+        req.platform = "steam";
+        req.platform_user_id = String(platformUserId);
+        req.steam_id = String(platformUserId); // back-compat for existing code
+
+        // Persist on session for quicker access later
+        req.session.identity_id = identityId;
+        req.session.user_id = userId;
+        req.session.steam_id = String(platformUserId);
+
+        next();
+    } catch (err) {
+        console.error("[requireIdentity] error:", err);
+        res.status(500).json({error: "Failed to resolve identity"});
     }
-    req.steam_id = steamId;
-    next();
 };
 
 export async function requireAdmin(req, res, next) {
-    const steam_id = req.steam_id;
-    if (!steam_id) return res.status(401).json({error: "Not authenticated"});
-
     try {
+        const identityId = req.identity_id || req.session?.identity_id;
+        if (!identityId) return res.status(401).json({error: "Not authenticated"});
+
         const [[row]] = await pool.query(
             `
                 SELECT u.role
                 FROM users u
-                         JOIN user_identities ui ON ui.user_id = u.id
-                WHERE ui.platform = 'steam'
-                  AND ui.platform_user_id = ?
+                JOIN user_identities ui ON ui.user_id = u.id
+                WHERE ui.id = ?
                 LIMIT 1
             `,
-            [steam_id]
+            [identityId]
         );
 
-        if (!row) return res.status(403).json({error: "No user record"});
-        if (row.role !== "admin") {
-            return res.status(403).json({error: "Admin only"});
-        }
+        const role = String(row?.role || "").toLowerCase();
+        if (!role) return res.status(403).json({error: "No user record"});
+        if (role !== "admin") return res.status(403).json({error: "Admin only"});
+
         next();
     } catch (err) {
         console.error("[requireAdmin] error:", err);

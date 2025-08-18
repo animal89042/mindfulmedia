@@ -1,131 +1,121 @@
 import axios from "axios";
+import http from "http";
+import https from "https";
+import { cache } from "../cache.js";
 
 const STEAM_API_KEY = process.env.STEAM_API_KEY;
-if (!STEAM_API_KEY) {
-    throw new Error("Missing STEAM_API_KEY in backend environment");
-}
 
-// axios instance with timeout & tiny retry helper
-const http = axios.create({
+// Reuse sockets (keep-alive) to reduce latency
+const httpAgent  = new http.Agent({ keepAlive: true, maxSockets: 50 });
+const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 50 });
+
+const httpClient = axios.create({
     timeout: 8000,
-    headers: {"Accept-Encoding": "gzip, deflate, br"},
+    httpAgent,
+    httpsAgent,
+    headers: { "Accept-Encoding": "gzip, deflate, br" },
 });
 
-async function withRetry(fn, {retries = 2, delayMs = 400} = {}) {
-    let lastErr;
+// tiny retry with backoff
+async function withRetry(fn, { retries = 2, delayMs = 400 } = {}) {
+    let err;
     for (let i = 0; i <= retries; i++) {
-        try {
-            return await fn();
-        } catch (e) {
-            lastErr = e;
-            if (i === retries) break;
-            await new Promise(r => setTimeout(r, delayMs * (i + 1))); // backoff
+        try { return await fn(); } catch (e) {
+            err = e;
+            if (i < retries) await new Promise(r => setTimeout(r, delayMs * (i + 1)));
         }
     }
-    throw lastErr;
-}
-
-const cache = new Map();
-
-function getCache(key) {
-    const hit = cache.get(key);
-    if (hit && hit.exp > Date.now()) return hit.val;
-    cache.delete(key);
-    return null;
-}
-
-function setCache(key, val, ttlMs = 60_000) {
-    cache.set(key, {val, exp: Date.now() + ttlMs});
-}
-
-function iconUrl(appid, hash) {
-    return hash
-        ? `https://media.steampowered.com/steamcommunity/public/images/apps/${appid}/${hash}.jpg`
-        : null;
+    throw err;
 }
 
 export async function getOwnedGames(steamID) {
-    const cacheKey = `owned:${steamID}`;
-    const cached = getCache(cacheKey);
-    if (cached) return cached;
-
-    const url = "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/";
-    const params = {
-        key: process.env.STEAM_API_KEY,
-        steamid: steamID,
-        include_appinfo: 1,
-        include_played_free_games: 1,
-    };
-
-    const data = await withRetry(async () => (await http.get(url, {params})).data);
-    const games = data?.response?.games ?? [];
-
-    const normalized = games.map(g => ({
-        appid: g.appid,
-        name: g.name || null,
-        img_icon_url: g.img_icon_url || null,
-        icon_url: iconUrl(g.appid, g.img_icon_url),   // convenience
-        playtime_forever: g.playtime_forever ?? 0,
-    }));
-
-    setCache(cacheKey, normalized, 60_000);
-    return normalized;
+    const key = `steam:owned:${steamID}`;
+    return cache.wrap(key, 60_000, 5 * 60_000, async () => {
+        const url = "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/";
+        const params = {
+            key: STEAM_API_KEY,
+            steamid: steamID,
+            include_appinfo: 1,
+            include_played_free_games: 1,
+        };
+        const data = await withRetry(() =>
+            httpClient.get(url, { params }).then(r => r.data)
+        );
+        const games = data?.response?.games ?? [];
+        return games.map(g => ({
+            appid: g.appid,
+            name: g.name || null,
+            img_icon_url: g.img_icon_url || null,
+            icon_url: g.img_icon_url
+                ? `https://media.steampowered.com/steamcommunity/public/images/apps/${g.appid}/${g.img_icon_url}.jpg`
+                : null,
+            playtime_forever: g.playtime_forever ?? 0,
+        }));
+    });
 }
 
 export async function getGameData(appid) {
-    const cacheKey = `details:${appid}`;
-    const cached = getCache(cacheKey);
-    if (cached) return cached;
-
-    const url = "https://store.steampowered.com/api/appdetails";
-    const params = {appids: appid};
-
-    const data = await withRetry(async () => (await http.get(url, {params})).data);
-    const item = data?.[appid];
-
-    if (!item?.success || !item?.data) return null;
-
-    const categories = item.data.categories
-        ? item.data.categories.map((c) => c.description).join(", ")
-        : "Uncategorized";
-
-    const result = {
-        appid,
-        title: item.data.name || "Unknown",
-        imageUrl: item.data.header_image || "",
-        category: categories,
-    };
-
-    setCache(cacheKey, result, 5 * 60_000);
-    return result;
+    const key = `steam:details:${appid}`;
+    return cache.wrap(key, 5 * 60_000, 10 * 60_000, async () => {
+        const url = "https://store.steampowered.com/api/appdetails";
+        const params = { appids: appid };
+        const data = await withRetry(() =>
+            httpClient.get(url, { params }).then(r => r.data)
+        );
+        const item = data?.[appid];
+        if (!item?.success || !item?.data) return null;
+        const categories = item.data.categories
+            ? item.data.categories.map(c => c.description).join(", ")
+            : "Uncategorized";
+        return {
+            appid,
+            title: item.data.name || "Unknown",
+            imageUrl: item.data.header_image || "",
+            category: categories,
+        };
+    });
 }
 
 export async function getPlayerSummary(steamID) {
-    const cacheKey = `summary:${steamID}`;
-    const cached = getCache(cacheKey);
-    if (cached) return cached;
-
-    const url = "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/";
-    const params = {key: STEAM_API_KEY, steamids: steamID};
-
-    const data = await withRetry(async () => (await http.get(url, {params})).data);
-    const p = data?.response?.players?.[0];
-    if (!p) return null;
-
-    const result = {
-        personaname: p.personaname,
-        avatar: p.avatar,
-        avatarfull: p.avatarfull,
-        profileurl: p.profileurl,
-    };
-    setCache(cacheKey, result, 60_000);
-    return result;
+    const key = `steam:summary:${steamID}`;
+    return cache.wrap(key, 60_000, 5 * 60_000, async () => {
+        const url = "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/";
+        const params = { key: STEAM_API_KEY, steamids: steamID };
+        const data = await withRetry(() =>
+            httpClient.get(url, { params }).then(r => r.data)
+        );
+        const p = data?.response?.players?.[0];
+        if (!p) return null;
+        return { personaname: p.personaname, avatar: p.avatar, avatarfull: p.avatarfull };
+    });
 }
 
-export async function getUserStatsForGame(steamId, appid) {
-    const url = "https://api.steampowered.com/ISteamUserStats/GetUserStatsForGame/v2/";
-    const params = { appid, key: STEAM_API_KEY, steamid: steamId };
+export async function getUserStatsForGame(steamID, appid) {
+    const key = `steam:userstats:${steamID}:${appid}`;
+    return cache.wrap(key, 60_000, 5 * 60_000, async () => {
+        const url = "https://api.steampowered.com/ISteamUserStats/GetUserStatsForGame/v2/";
+        const params = { key: STEAM_API_KEY, steamid: steamID, appid };
+        const data = await withRetry(() =>
+            httpClient.get(url, { params }).then(r => r.data)
+        );
+        return data?.playerstats ?? {};
+    });
+}
 
-    const data = await withRetry(async () => (await http.get(url, { params })).data);
-    return data?.playerstats || {};
+export async function getPlaytimeForApp(steamID, appid) {
+    const key = `steam:playtime:${steamID}:${appid}`;
+    return cache.wrap(key, 60_000, 5 * 60_000, async () => {
+        const url = "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/";
+        const params = {
+            key: STEAM_API_KEY,
+            steamid: steamID,
+            include_appinfo: 0,
+            include_played_free_games: 1,
+            "appids_filter[0]": String(appid),
+        };
+        const data = await withRetry(() =>
+            httpClient.get(url, { params }).then(r => r.data)
+        );
+        return data?.response?.games?.[0]?.playtime_forever ?? 0;
+    });
 }
