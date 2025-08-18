@@ -5,15 +5,12 @@ import { api } from "../../api/client";
 import routes from "../../api/routes";
 
 export default function NavigationBar({ user, checked, setUser, onSearch }) {
-    // ✅ hooks always at the top
     const [q, setQ] = useState("");
     const navigate = useNavigate();
     const { pathname } = useLocation();
 
-    // Early return AFTER hooks
     if (!checked || !user) return null;
 
-    // publish search terms (light debounce)
     useEffect(() => {
         const id = setTimeout(() => onSearch?.(q.trim()), 200);
         return () => clearTimeout(id);
