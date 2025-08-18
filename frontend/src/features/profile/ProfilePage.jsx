@@ -47,7 +47,9 @@ function JournalItem({ entry, onUpdated, onDeleted }) {
     };
 
     const del = async () => {
-        if (!confirm("Delete this journal entry?")) return;
+        if (typeof window !== "undefined" && !window.confirm("Delete this journal entry?")) {
+            return;
+        }
         try {
             await api.delete(routes.journalById(entry.id));
             onDeleted(entry.id);

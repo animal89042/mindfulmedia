@@ -5,11 +5,13 @@ import { api } from "../../api/client";
 import routes from "../../api/routes";
 
 export default function NavigationBar({ user, checked, setUser, onSearch }) {
-    if (!checked || !user) return null;
-
+    // ✅ hooks always at the top
     const [q, setQ] = useState("");
     const navigate = useNavigate();
     const { pathname } = useLocation();
+
+    // Early return AFTER hooks
+    if (!checked || !user) return null;
 
     // publish search terms (light debounce)
     useEffect(() => {
@@ -19,7 +21,7 @@ export default function NavigationBar({ user, checked, setUser, onSearch }) {
 
     const handleLogout = async () => {
         try {
-            await api.post(routes.logout); // POST /api/logout
+            await api.post(routes.logout);
         } catch (err) {
             console.warn("logout failed", err);
         } finally {
@@ -33,13 +35,10 @@ export default function NavigationBar({ user, checked, setUser, onSearch }) {
     return (
         <header className="sticky top-0 z-50 backdrop-blur bg-black/50 border-b border-white/10">
             <nav className="mx-auto max-w-[1200px] grid grid-cols-[180px_1fr_auto] items-center gap-3 px-4 py-2">
-
-                {/* brand */}
                 <Link to="/" className="text-white font-bold no-underline">
                     MindfulMedia
                 </Link>
 
-                {/* search */}
                 <input
                     type="search"
                     value={q}
@@ -48,10 +47,7 @@ export default function NavigationBar({ user, checked, setUser, onSearch }) {
                     className="w-full rounded-lg border border-white/20 bg-white/10 text-white placeholder-white/60 px-3 py-2 outline-none"
                 />
 
-                {/* actions */}
                 <div className="flex items-center justify-end gap-2">
-
-                    {/* Only visible after login due to top-level gate */}
                     <button
                         onClick={() => navigate("/profile")}
                         className="rounded-lg border border-white/20 bg-white/10 text-white px-3 py-2"
@@ -59,7 +55,6 @@ export default function NavigationBar({ user, checked, setUser, onSearch }) {
                         Profile
                     </button>
 
-                    {/* Logout only when on /profile */}
                     {onProfilePage && (
                         <button
                             onClick={handleLogout}
