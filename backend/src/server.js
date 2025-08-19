@@ -11,6 +11,8 @@ import authRoutes from "../src/routes/auth.js";
 import gamesRoutes from "../src/routes/games.js";
 import journalRoutes from "./routes/journals.js";
 import userRoutes from "../src/routes/user.js";
+import profileRouter from "../src/routes/profile.js";
+import friendsRoutes from "../src/routes/friends.js";
 
 import {
     pool,
@@ -118,6 +120,8 @@ async function startServer() {
     app.use('/api', gamesRoutes);
     app.use('/api', journalRoutes);
     app.use('/api', userRoutes);
+    app.use('/api', profileRouter);
+    app.use('/api/friends', friendsRoutes);
 
     // Start listening
     app.listen(PORT, () => {
