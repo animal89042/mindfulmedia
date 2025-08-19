@@ -20,8 +20,7 @@ export default function App() {
     const [isAdmin, setIsAdmin] = useState(false);
 
     useEffect(() => {
-        api
-            .get(routes.me) // GET /api/me
+        api.get(routes.me) // GET /api/me
             .then((res) => setUser(res.data))
             .catch(() => setUser(null))
             .finally(() => setChecked(true));

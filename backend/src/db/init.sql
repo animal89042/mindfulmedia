@@ -113,6 +113,26 @@ CREATE TABLE IF NOT EXISTS user_game_journals (
         FOREIGN KEY (platform_game_id) REFERENCES platform_games(id)
 );
 
+/* Friendships */
+CREATE TABLE IF NOT EXISTS friendships (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_a_id BIGINT NOT NULL,
+    user_b_id BIGINT NOT NULL,
+    status ENUM('pending','accepted','declined','blocked') NOT NULL DEFAULT 'pending',
+    requested_by BIGINT NOT NULL,
+    responded_by BIGINT NULL,
+    blocked_by BIGINT NULL,
+    requested_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    responded_at TIMESTAMP NULL DEFAULT NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT chk_ordered_pair CHECK (user_a_id <= user_b_id),
+    CONSTRAINT uq_pair UNIQUE (user_a_id, user_b_id),
+    INDEX idx_user_a (user_a_id),
+    INDEX idx_user_b (user_b_id),
+    INDEX idx_status (status),
+    CONSTRAINT fk_friends_user_a FOREIGN KEY (user_a_id) REFERENCES users(id),
+    CONSTRAINT fk_friends_user_b FOREIGN KEY (user_b_id) REFERENCES users(id)
+);
 /* ========================= CONVENIENCE ========================== */
 
 /* Library view your routes already use */
@@ -129,3 +149,13 @@ SELECT
 FROM user_game_library AS ugl
          JOIN platform_games AS pg
               ON pg.id = ugl.platform_game_id;
+
+/* View used by /api/friends to list accepted friends */
+CREATE OR REPLACE VIEW v_user_friends AS
+SELECT user_a_id AS user_id, user_b_id AS friend_id
+FROM friendships
+WHERE status = 'accepted'
+UNION ALL
+SELECT user_b_id AS user_id, user_a_id AS friend_id
+FROM friendships
+WHERE status = 'accepted';

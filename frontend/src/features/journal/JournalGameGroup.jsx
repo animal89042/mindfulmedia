@@ -6,38 +6,17 @@ const JournalGameGroup = ({ game, appid, entries, setEntries }) => {
 
     const addEntry = () => {
         const now = new Date().toISOString();
-        const temp = {
-            id: `new-${Date.now()}`,
-            appid,
-            game_title: game,
-            journal_title: "",
-            entry: "",
-            created_at: now,
-            edited_at: now,
-            isNew: true,
-        };
+        const temp = { id: `new-${Date.now()}`, appid, game_title: game, journal_title: "", entry: "", created_at: now, edited_at: now, isNew: true };
         setEntries((old) => [temp, ...old]);
     };
 
     return (
-        <section className="border-b border-white/10 py-4">
-            <button
-                onClick={() => setExpanded((e) => !e)}
-                className="w-full flex items-center gap-2 text-left font-semibold text-white/90"
-            >
-                <span className="select-none text-white/60">{expanded ? "▾" : "▸"}</span>
+        <section className="border-b app-border py-4">
+            <button onClick={() => setExpanded((e) => !e)} className="w-full flex items-center gap-2 text-left font-semibold">
+                <span className="select-none app-subtle">{expanded ? "▾" : "▸"}</span>
                 <span className="flex-1">{game}</span>
-                <span className="text-sm text-white/60">({entries.length})</span>
-                <span
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        addEntry();
-                    }}
-                    className="ml-2 inline-flex items-center justify-center w-7 h-7 rounded-md border border-white/20 bg-white/10 hover:bg-white/15"
-                    title="New entry"
-                >
-          +
-        </span>
+                <span className="text-sm app-subtle">({entries.length})</span>
+                <span onClick={(e) => { e.stopPropagation(); addEntry(); }} className="ml-2 inline-flex items-center justify-center w-7 h-7 rounded-md btn-ghost" title="New entry">+</span>
             </button>
 
             {expanded && (

@@ -1,75 +1,60 @@
-// src/components/layout/Navbar.jsx
-import React, { useEffect, useState } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
-import Settings from "../settings/Settings";
-import { api } from "../../api/client";
-import routes from "../../api/routes";
+import { Link } from "react-router-dom";
+import SettingsMenu from "./SettingsMenu";
+import logo from "../../assets/logo.svg";
 
-export default function NavigationBar({ user, checked, setUser, onSearch }) {
-    const [q, setQ] = useState("");
-    const navigate = useNavigate();
-    const { pathname } = useLocation();
-
-    useEffect(() => {
-        if (!checked || !user) return; // do nothing when navbar is hidden
-        const id = setTimeout(() => onSearch?.(q.trim()), 200);
-        return () => clearTimeout(id);
-    }, [q, onSearch, checked, user]);
-
-    if (!checked || !user) return null;
-
-    const handleLogout = async () => {
-        try {
-            await api.post(routes.logout);
-        } catch (err) {
-            console.warn("logout failed", err);
-        } finally {
-            setUser?.(null);
-            navigate("/login", { replace: true });
-        }
-    };
-
-    const onProfilePage = pathname === "/profile";
+export default function Navbar({ user }) {
+    const displayName =
+        user?.display_name || user?.displayName || user?.username || "Profile";
+    const avatar = user?.avatar || null;
 
     return (
-        <header className="sticky top-0 z-50 backdrop-blur bg-black/50 border-b border-white/10">
-            <nav className="mx-auto max-w-[1200px] grid grid-cols-[180px_1fr_auto] items-center gap-3 px-4 py-2">
+        <header className="sticky top-0 z-40 w-full border-b border-white/10 bg-neutral-950/80 backdrop-blur">
+            {/* Full width; just give side padding that scales */}
+            <div className="w-full px-4 sm:px-6 lg:px-10">
+                {/* Grid keeps brand centered without hacks */}
+                <div className="grid grid-cols-3 items-center h-14">
+                    {/* Left spacer (you can add a nav later) */}
+                    <div className="flex items-center gap-3"></div>
 
-                {/* brand */}
-                <Link to="/" className="text-white font-bold no-underline">
-                    MindfulMedia
-                </Link>
+                    {/* Centered brand */}
+                    <Link to="/" className="justify-self-center group inline-flex items-center gap-2 select-none">
+                        <img
+                            src={logo}
+                            alt="MindfulMedia Logo"
+                            className="h-8 w-8 transition-transform duration-300 ease-out group-hover:rotate-12 group-hover:scale-110 drop-shadow"
+                        />
+                        <div className="relative">
+                            <h1 className="text-2xl font-extrabold tracking-wide transition-all duration-300 text-blue-400 group-hover:drop-shadow-[0_0_10px_rgba(59,130,246,0.55)]">
+                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-blue-400 group-hover:from-blue-400 group-hover:to-cyan-300 transition-colors duration-300">
+                                    MindfulMedia
+                                </span>
+                            </h1>
+                            <span className="pointer-events-none absolute -bottom-1 left-0 block h-[2px] w-full origin-left scale-x-0 rounded-full bg-gradient-to-r from-blue-400 to-cyan-300 transition-transform duration-300 group-hover:scale-x-100" />
+                        </div>
+                    </Link>
 
-                {/* search */}
-                <input
-                    type="search"
-                    value={q}
-                    onChange={(e) => setQ(e.target.value)}
-                    placeholder="Search your library…"
-                    className="w-full rounded-lg border border-white/20 bg-white/10 text-white placeholder-white/60 px-3 py-2 outline-none"
-                />
+                    {/* Right side: settings + profile */}
+                    <div className="justify-self-end flex items-center gap-4 min-w-0">
+                        <SettingsMenu />
 
-                {/* actions */}
-                <div className="flex items-center justify-end gap-2">
-                    <button
-                        onClick={() => navigate("/profile")}
-                        className="rounded-lg border border-white/20 bg-white/10 text-white px-3 py-2"
-                    >
-                        Profile
-                    </button>
-
-                    {onProfilePage && (
-                        <button
-                            onClick={handleLogout}
-                            className="rounded-lg border border-white/20 bg-white/10 text-white px-3 py-2"
-                        >
-                            Sign Out
-                        </button>
-                    )}
-
-                    <Settings />
+                        <Link to="/profile" className="group flex items-center gap-2 min-w-0">
+                            <div className="h-8 w-8 rounded-full overflow-hidden bg-white/10 ring-1 ring-white/15
+                              transition transform group-hover:scale-[1.03] group-hover:ring-white/30">
+                                {avatar ? (
+                                    <img src={avatar} alt={displayName} className="h-full w-full object-cover" draggable={false} />
+                                ) : (
+                                    <div className="grid h-full w-full place-items-center text-[11px] text-white/80">
+                                        {displayName.slice(0, 1).toUpperCase()}
+                                    </div>
+                                )}
+                            </div>
+                            <span className="text-sm text-white/80 group-hover:text-white truncate max-w-[140px]">
+                                {displayName}
+                            </span>
+                        </Link>
+                    </div>
                 </div>
-            </nav>
+            </div>
         </header>
     );
 }
