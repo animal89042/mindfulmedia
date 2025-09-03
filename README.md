@@ -1,4 +1,4 @@
-#UPDATE ME THHIS WEEKEND ON SERVER STATE SWAP!!!!!!!!!!!!!!!!!!!!! 
+#UPDATE ME THIS WEEKEND ON SERVER STATE SWAP!!!!!!!!!!!!!!!!!!!!! 
 
 # MindfulMedia README
 
