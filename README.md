@@ -1,3 +1,5 @@
+#UPDATE ME THIS WEEKEND ON SERVER STATE SWAP!!!!!!!!!!!!!!!!!!!!! 
+
 # MindfulMedia README
 
 ## Table of Contents
