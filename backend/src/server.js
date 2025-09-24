@@ -5,21 +5,28 @@ import passport from "passport";
 import mysqlSessionPkg from 'express-mysql-session';
 import { Strategy as SteamStrategy } from "passport-steam";
 
-import { PORT, STEAM_API_KEY, BACKEND_BASE, FRONTEND_BASE, SESSION_SECRET, isProd } from "./config/env.js";
+import {
+    PORT,
+    STEAM_API_KEY,
+    BACKEND_BASE,
+    FRONTEND_BASE,
+    SESSION_SECRET,
+    isProd
+} from "./config/env.js";
 
-import authRoutes from "../src/routes/auth.js";
-import gamesRoutes from "../src/routes/games.js";
+import authRoutes from "./routes/auth.js";
+import gamesRoutes from "./routes/games.js";
 import journalRoutes from "./routes/journals.js";
-import userRoutes from "../src/routes/user.js";
-import profileRouter from "../src/routes/profile.js";
-import friendsRoutes from "../src/routes/friends.js";
+import userRoutes from "./routes/user.js";
+import profileRouter from "./routes/profile.js";
+import friendsRoutes from "./routes/friends.js";
+import leaderboardsRoutes from "./routes/leaderboards.js";
 
 import {
     pool,
     initSchema,
 } from "./db/database.js";
 
-// Background warmup: optional migrations + open DB/session paths
 async function warmup() {
     const t0 = Date.now();
     try {
@@ -31,7 +38,7 @@ async function warmup() {
     }
 }
 
-// Session Store (TiDB via mysql2 pool)
+// Session Store
 const MySQLStore = (mysqlSessionPkg.default || mysqlSessionPkg)(session);
 
 const sessionStore = new MySQLStore(
@@ -48,10 +55,9 @@ const sessionStore = new MySQLStore(
     pool
 );
 
-// Surface store errors (helps catch DB issues fast)
-sessionStore.on?.("error", (err) => {
-    console.error("[session-store] error:", err);
-});
+sessionStore.on?.("error", (err) => console.error("[session-store] error:"));
+
+const stripSlash = (u) => (u || "").replace(/\/+$/, "");
 
 async function startServer() {
     // 1) Express setup
@@ -73,15 +79,19 @@ async function startServer() {
                 if (!origin) return callback(null, true); // allow server-to-server or curl requests
                 const ok = allowedOrigins.includes(origin) || /\.vercel\.app$/.test(origin);
                 if (ok) return callback(null, true);
-                callback(new Error(`CORS blocked origin: ${origin}`));
+                callback(new Error(`CORS blocked origin: ${ origin }`));
             },
-            credentials: true, // allow cookies and credentials
+            credentials: true,
+            methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            allowedHeaders: ["Content-Type", "Authorization"],
+            optionsSuccessStatus: 204,
+            maxAge: 60 * 10,
         })
     );
 
     app.use(express.json());
 
-    // 4) Sessions (TiDB-backed)
+    // Sessions
     app.use(session({
         name: 'mm.sid',
         secret: SESSION_SECRET || "mindfulmediaBMG",
@@ -103,8 +113,6 @@ async function startServer() {
     passport.serializeUser((user, done) => done(null, user));
     passport.deserializeUser((user, done) => done(null, user));
 
-    const stripSlash = (u) => u.replace(/\/+$/, '');
-
     passport.use(new SteamStrategy(
         {
             returnURL: `${ stripSlash(BACKEND_BASE) }/api/auth/steam/return`,
@@ -114,7 +122,12 @@ async function startServer() {
         (identifier, profile, done) => done(null, profile)
     ));
 
-    console.log('[Bases]', { FRONTEND_BASE, BACKEND_BASE, PORT, NODE_ENV: process.env.NODE_ENV });
+    console.log('[Bases]', {
+        FRONTEND_BASE,
+        BACKEND_BASE,
+        PORT,
+        NODE_ENV: process.env.NODE_ENV,
+    });
 
     app.use('/api', authRoutes);
     app.use('/api', gamesRoutes);
@@ -122,6 +135,7 @@ async function startServer() {
     app.use('/api', userRoutes);
     app.use('/api', profileRouter);
     app.use('/api/friends', friendsRoutes);
+    app.use('/api/leaderboards', leaderboardsRoutes)
 
     // Start listening
     app.listen(PORT, () => {

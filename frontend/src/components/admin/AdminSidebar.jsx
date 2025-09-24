@@ -2,6 +2,48 @@ import React, { useEffect, useState, useCallback } from "react";
 import { api } from "../../api/client";
 import routes from "../../api/routes";
 
+function looksLikeSteamId(s) {
+    if (!s) return false;
+    const str = String(s).trim();
+    // steam_abcdef..., 17-digit steamid64, or long hex-y handles
+    return (
+        /^steam_[a-z0-9]+$/i.test(str) ||
+        /^[0-9]{17}$/.test(str) ||
+        /^(?:[a-f0-9]{10,})$/i.test(str)
+    );
+}
+
+function maskId(id) {
+    if (!id) return "User";
+    const s = String(id);
+    return `User #${s.slice(-4)}`;
+}
+
+function pickDisplayName(u) {
+    // Prefer human-friendly names first
+    const candidates = [
+        u.username,
+        u.display_name,
+        u.displayName,
+        u.personaname,   // Steam
+        u.personaName,   // Steam (alt casing)
+        u.name,
+        u.email
+    ].filter(Boolean);
+
+    // First non-empty candidate that doesn't look like a Steam ID
+    const nice = candidates.find((c) => !looksLikeSteamId(c));
+    if (nice) return nice;
+
+    // Fall back to persona name if we only had IDs elsewhere
+    if (u.personaname && !looksLikeSteamId(u.personaname)) return u.personaname;
+    if (u.personaName && !looksLikeSteamId(u.personaName)) return u.personaName;
+
+    // Final fallback: masked id or generic
+    const anyId = u.id ?? u.user_id ?? u.identity_id ?? u.uid ?? u.account_id;
+    return maskId(anyId);
+}
+
 export default function AdminSidebar({ open, onClose }) {
     const [loading, setLoading] = useState(false);
     const [users, setUsers] = useState([]);
@@ -21,7 +63,6 @@ export default function AdminSidebar({ open, onClose }) {
             setUsers([]);
 
             try {
-                // Strictly hit the admin list; rely on HTTP status for auth
                 const listPath = routes?.adminUsers || "/admin/users";
                 const { data } = await api.get(listPath, { withCredentials: true });
 
@@ -35,15 +76,7 @@ export default function AdminSidebar({ open, onClose }) {
                     const id =
                         u.id ?? u.user_id ?? u.identity_id ?? u.uid ?? u.account_id ?? null;
 
-                    const name =
-                        u.username ??
-                        u.display_name ??
-                        u.displayName ??
-                        u.personaname ??
-                        u.personaName ??
-                        u.name ??
-                        u.email ??
-                        (id ? `User #${id}` : "Unknown");
+                    const name = pickDisplayName({ ...u, id });
 
                     const avatar = u.avatarfull ?? u.avatar_url ?? u.avatar ?? null;
                     const role = u.role ?? u.user_role ?? "user";
@@ -66,7 +99,9 @@ export default function AdminSidebar({ open, onClose }) {
             }
         })();
 
-        return () => { alive = false; };
+        return () => {
+            alive = false;
+        };
     }, [open]);
 
     return (
@@ -80,20 +115,26 @@ export default function AdminSidebar({ open, onClose }) {
                 aria-hidden={!open}
             />
 
-            {/* Panel */}
+            {/* Panel (theme-aware) */}
             <aside
-                className={`fixed top-0 right-0 h-full w-[360px] bg-zinc-900 text-zinc-100 border-l border-white/10 transform transition-transform duration-200 ${
+                className={`fixed top-0 right-0 h-full w-[360px] bg-white text-zinc-900
+                    dark:bg-zinc-900 dark:text-zinc-100
+                    border-l border-zinc-200 dark:border-white/10
+                    transform transition-transform duration-200 ${
                     open ? "translate-x-0" : "translate-x-full"
                 } z-[50] shadow-xl`}
                 role="dialog"
                 aria-modal="true"
                 aria-label="Admin"
             >
-                <div className="flex items-center justify-between px-4 h-14 border-b border-white/10">
+                <div className="flex items-center justify-between px-4 h-14 border-b border-zinc-200 dark:border-white/10">
                     <h2 className="text-lg font-semibold">Admin</h2>
                     <button
                         onClick={close}
-                        className="px-2 py-1 rounded-md bg-white/10 border border-white/20 hover:bg-white/15"
+                        className="px-3 py-1.5 rounded-md
+                            bg-zinc-800 text-white hover:bg-zinc-700
+                            dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200
+                            border border-transparent shadow-sm"
                         aria-label="Close admin panel"
                     >
                         Close
@@ -101,32 +142,39 @@ export default function AdminSidebar({ open, onClose }) {
                 </div>
 
                 <div className="p-4 space-y-3 overflow-y-auto h-[calc(100%-56px)]">
-                    {loading && <div className="text-sm text-zinc-400">Loading…</div>}
-                    {!loading && error && <div className="text-sm text-red-400">{error}</div>}
+                    {loading && <div className="text-sm text-zinc-500 dark:text-zinc-400">Loading…</div>}
+                    {!loading && error && <div className="text-sm text-red-600 dark:text-red-400">{error}</div>}
                     {!loading && !error && users.length === 0 && (
-                        <div className="text-sm text-zinc-400">No users found.</div>
+                        <div className="text-sm text-zinc-500 dark:text-zinc-400">No users found.</div>
                     )}
-                    {!loading && !error &&
+
+                    {!loading &&
+                        !error &&
                         users.map((u) => (
                             <div
-                                key={u.id ?? Math.random()}
-                                className="flex items-center gap-3 p-2 rounded-lg bg-white/5 border border-white/10"
+                                key={u.id ?? `${u.name}-${Math.random()}`}
+                                className="flex items-center gap-3 p-2 rounded-lg
+                           bg-zinc-50 border border-zinc-200
+                           dark:bg-white/5 dark:border-white/10"
                             >
                                 {u.avatar ? (
                                     <img
                                         src={u.avatar}
                                         alt=""
-                                        className="w-9 h-9 rounded-full object-cover border border-white/10"
+                                        className="w-9 h-9 rounded-full object-cover border border-zinc-200 dark:border-white/10"
                                         onError={(e) => (e.currentTarget.style.display = "none")}
                                     />
                                 ) : (
-                                    <div className="w-9 h-9 rounded-full bg-white/10 border border-white/10 grid place-items-center text-xs text-zinc-400">
+                                    <div className="w-9 h-9 rounded-full bg-zinc-200 text-zinc-500
+                                  dark:bg-white/10 dark:text-zinc-400
+                                  border border-zinc-200 dark:border-white/10
+                                  grid place-items-center text-xs">
                                         ?
                                     </div>
                                 )}
                                 <div className="flex-1">
-                                    <div className="font-medium leading-tight">{u.name}</div>
-                                    <div className="text-xs text-zinc-400">{u.role}</div>
+                                    <div className="font-medium leading-tight truncate">{u.name}</div>
+                                    <div className="text-xs text-zinc-500 dark:text-zinc-400">{u.role}</div>
                                 </div>
                             </div>
                         ))}

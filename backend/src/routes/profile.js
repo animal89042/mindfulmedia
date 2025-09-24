@@ -1,7 +1,6 @@
-// backend/src/routes/profile.js
-import {Router} from "express";
-import {pool} from "../db/database.js";
-import {requireIdentity} from "../middleware/AuthMiddleware.js";
+import { Router } from "express";
+import { pool } from "../db/database.js";
+import { requireIdentity, withCacheHeaders } from "../middleware/AuthMiddleware.js";
 
 const router = Router();
 
@@ -18,53 +17,7 @@ function shapeUser(u) {
     };
 }
 
-/* Map Steam OpenID (passport profile id) -> user_id via user_identities */
-async function userIdFromSteamId(steamId64) {
-    if (!steamId64) return null;
-    const [[row]] = await pool.query(
-        `SELECT user_id
-         FROM user_identities
-         WHERE platform = 'steam'
-           AND platform_user_id = ?
-         LIMIT 1`,
-        [steamId64]
-    );
-    return row?.user_id ?? null;
-}
-
-/* Map identity_id (row id in user_identities) -> user_id */
-async function userIdFromIdentityId(identityId) {
-    if (!identityId) return null;
-    const [[row]] = await pool.query(
-        `SELECT user_id
-         FROM user_identities
-         WHERE id = ?
-         LIMIT 1`,
-        [identityId]
-    );
-    return row?.user_id ?? null;
-}
-
-/* Resolve viewer's user_id from whatever auth put on the request */
-async function resolveViewerUserId(req) {
-    // If your auth already stored a numeric user id:
-    if (typeof req.user?.id === "number") return req.user.id;
-    if (req.user_id) return req.user_id;
-
-    // Most common: Steam OpenID stored on req.user.id (string)
-    const steamId = req.user?.id || req.session?.passport?.user?.id || null;
-    let uid = await userIdFromSteamId(steamId);
-    if (uid) return uid;
-
-    // Fallback: identity_id set by requireIdentity middleware
-    if (req.identity_id) {
-        uid = await userIdFromIdentityId(req.identity_id);
-        if (uid) return uid;
-    }
-    return null;
-}
-
-/* Fetch a "user header" by user id; fall back to any identity row if users row is missing */
+/* Fetch a compact user header */
 async function fetchUserShapeByUserId(userId) {
     const [[u]] = await pool.query(
         `SELECT id, username, username AS displayName, avatar, profile_url, NULL AS bio
@@ -90,13 +43,12 @@ async function fetchUserShapeByUserId(userId) {
     return i ? shapeUser(i) : null;
 }
 
-/* Lookup user row by username */
 async function findUserByUsername(username) {
     const [[u]] = await pool.query(
         `SELECT id, username, username AS displayName, avatar, profile_url, NULL AS bio
-       FROM users
-      WHERE username = ?
-      LIMIT 1`,
+         FROM users
+         WHERE username = ?
+         LIMIT 1`,
         [username]
     );
     return u || null;
@@ -104,12 +56,10 @@ async function findUserByUsername(username) {
 
 /* Build full profile payload */
 async function buildProfile(viewerUserId, targetUserId) {
-    // identity header
     const user = await fetchUserShapeByUserId(targetUserId);
     if (!user) return null;
 
-    // aggregated stats
-    const [[{total_minutes = 0}]] = await pool.query(
+    const [[{ total_minutes = 0 }]] = await pool.query(
         `SELECT COALESCE(SUM(ugl.playtime_minutes), 0) AS total_minutes
          FROM user_game_library ugl
                   JOIN user_identities ui ON ui.id = ugl.identity_id
@@ -117,7 +67,7 @@ async function buildProfile(viewerUserId, targetUserId) {
         [targetUserId]
     );
 
-    const [[{journals = 0}]] = await pool.query(
+    const [[{ journals = 0 }]] = await pool.query(
         `SELECT COUNT(*) AS journals
          FROM user_game_journals j
                   JOIN user_identities ui ON ui.id = j.identity_id
@@ -125,7 +75,7 @@ async function buildProfile(viewerUserId, targetUserId) {
         [targetUserId]
     );
 
-    const [[{friends = 0}]] = await pool.query(
+    const [[{ friends = 0 }]] = await pool.query(
         `SELECT COUNT(*) AS friends
          FROM friendships
          WHERE status = 'accepted'
@@ -133,18 +83,17 @@ async function buildProfile(viewerUserId, targetUserId) {
         [targetUserId, targetUserId]
     );
 
-    // relationship with viewer
     let relationship = "none";
     if (viewerUserId === targetUserId) {
         relationship = "self";
     } else if (viewerUserId) {
         const [rels] = await pool.query(
             `SELECT user_a_id, user_b_id, status, requested_by
-         FROM friendships
-        WHERE (user_a_id = ? AND user_b_id = ?)
-           OR (user_a_id = ? AND user_b_id = ?)
-        ORDER BY id DESC
-        LIMIT 1`,
+             FROM friendships
+             WHERE (user_a_id = ? AND user_b_id = ?)
+                OR (user_a_id = ? AND user_b_id = ?)
+             ORDER BY id DESC
+             LIMIT 1`,
             [viewerUserId, targetUserId, targetUserId, viewerUserId]
         );
         if (rels[0]) {
@@ -157,7 +106,6 @@ async function buildProfile(viewerUserId, targetUserId) {
         }
     }
 
-    // top 3 games by playtime (across all identities for this user)
     const [tg] = await pool.query(
         `SELECT pg.platform_game_id                                    AS appid,
                 COALESCE(pg.name, CONCAT('App ', pg.platform_game_id)) AS name,
@@ -174,43 +122,27 @@ async function buildProfile(viewerUserId, targetUserId) {
 
     return {
         user,
-        stats: {friends, journals, playtimeMinutes: Number(total_minutes)},
+        stats: { friends, journals, playtimeMinutes: Number(total_minutes) },
         relationship,
-        topGames: tg, // [{ appid, name, playtime_minutes }]
+        topGames: tg,
     };
 }
 
 /* Self profile */
-router.get("/profile", requireIdentity, async (req, res) => {
-    try {
-        const viewerUserId = await resolveViewerUserId(req);
-        if (!viewerUserId) return res.status(404).json({error: "Profile not found"});
-
+router.get("/profile", requireIdentity, withCacheHeaders(async (req) => {
+        const viewerUserId = Number(req.user_id); // provided by requireIdentity
         const out = await buildProfile(viewerUserId, viewerUserId);
-        if (!out) return res.status(404).json({error: "Profile not found"});
-
-        res.set("Cache-Control", "private, max-age=30, stale-while-revalidate=300");
-        return res.json(out);
-    } catch (err) {
-        console.error("[/profile] failed:", err);
-        return res.status(500).json({error: "Internal error"});
-    }
-});
+        return out || { error: "Profile not found" };
+    }, { maxAge: 30, staleWhileRevalidate: 300 })
+);
 
 /* Other user's profile by username */
-router.get("/users/:username/profile", requireIdentity, async (req, res) => {
-    try {
-        const viewerUserId = await resolveViewerUserId(req);
+router.get("/users/:username/profile", requireIdentity, withCacheHeaders(async (req) => {
+        const viewerUserId = Number(req.user_id);
         const u = await findUserByUsername(req.params.username);
-        if (!u) return res.status(404).json({error: "User not found"});
-
-        const out = await buildProfile(viewerUserId, u.id);
-        res.set("Cache-Control", "private, max-age=30, stale-while-revalidate=300");
-        return res.json(out);
-    } catch (err) {
-        console.error("[/users/:username/profile] failed:", err);
-        return res.status(500).json({error: "Internal error"});
-    }
-});
+        if (!u) return { error: "User not found" };
+        return await buildProfile(viewerUserId, u.id);
+    }, { maxAge: 30, staleWhileRevalidate: 300 })
+);
 
 export default router;

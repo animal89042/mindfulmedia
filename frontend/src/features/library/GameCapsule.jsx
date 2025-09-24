@@ -24,12 +24,6 @@ function GameImage({ src, alt, height = 450, rounded = "rounded-xl" }) {
     );
 }
 
-/*
- * Themed game capsule
- * props:
- *  - layout: 'grid' | 'list'
- *  - density: 'cozy' | 'compact'
- */
 export default function GameCapsule({
                                         title,
                                         imageUrl,
@@ -37,7 +31,7 @@ export default function GameCapsule({
                                         rating,
                                         layout = "grid",
                                         density = "cozy",
-                                    }) {
+}) {
     const isGrid = layout === "grid";
     const isCompact = density === "compact";
 

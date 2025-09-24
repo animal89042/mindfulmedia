@@ -9,24 +9,12 @@ const GameCapsuleList = ({ searchQuery, layout = "grid", density = "cozy" }) => 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // Persona name fetch retained (not shown in UI)
-    useEffect(() => {
-        api
-            .get(routes.playerSummary)
-            .then(({ data }) => {
-                const name = data.personaName || "Missing Name";
-                // eslint-disable-next-line no-console
-                console.log("Fetched persona name:", name);
-            })
-            .catch(() => {});
-    }, []);
-
     // Fetch owned games
     useEffect(() => {
         setLoading(true);
         setError(null);
         api
-            .get(routes.games, { withCredentials: true })
+            .get(routes.gameLibrary)
             .then(({ data }) => {
                 const arr = Array.isArray(data) ? data : Array.isArray(data?.games) ? data.games : [];
                 setGames(arr);

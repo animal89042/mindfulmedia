@@ -70,17 +70,30 @@ CREATE TABLE IF NOT EXISTS user_game_stats (
 
 /* Per-game achievements */
 CREATE TABLE IF NOT EXISTS user_game_achievements (
-    id                     BIGINT PRIMARY KEY AUTO_INCREMENT,
-    identity_id            BIGINT NOT NULL,
-    platform_game_id       BIGINT NOT NULL,
-    achievement_api_name   VARCHAR(128) NOT NULL,
-    unlocked_at            TIMESTAMP NULL,
-    progress               INT NOT NULL DEFAULT 0,
+    id                  BIGINT PRIMARY KEY AUTO_INCREMENT,
+    identity_id         BIGINT NOT NULL,
+    platform_game_id    BIGINT NOT NULL,
+    achievement_api_name VARCHAR(128) NOT NULL,
+    unlocked_at         TIMESTAMP NULL,
+    progress            INT NULL DEFAULT 0,
     UNIQUE KEY uq_uga_identity_game_ach (identity_id, platform_game_id, achievement_api_name),
+    KEY ix_uga_identity (identity_id),
+    KEY ix_uga_game (platform_game_id),
     CONSTRAINT fk_uga_identity
         FOREIGN KEY (identity_id)      REFERENCES user_identities(id),
     CONSTRAINT fk_uga_game
         FOREIGN KEY (platform_game_id) REFERENCES platform_games(id)
+);
+
+/* Achievements: global rarity snapshots */
+CREATE TABLE IF NOT EXISTS game_achievement_global (
+    id                   BIGINT PRIMARY KEY AUTO_INCREMENT,
+    platform             ENUM('steam','xbox','playstation','nintendo') NOT NULL,
+    platform_game_id     VARCHAR(64) NOT NULL,
+    achievement_api_name VARCHAR(128) NOT NULL,
+    percent              DECIMAL(6,3) NULL,
+    captured_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY ix_gag_lookup (platform, platform_game_id, achievement_api_name, captured_at)
 );
 
 /* Ingestion snapshots */
@@ -159,3 +172,23 @@ UNION ALL
 SELECT user_b_id AS user_id, user_a_id AS friend_id
 FROM friendships
 WHERE status = 'accepted';
+
+/* Progress view: unlocked/total per identity+game */
+DROP VIEW IF EXISTS v_identity_achievement_progress;
+CREATE VIEW v_identity_achievement_progress AS
+SELECT ugl.identity_id,
+       pg.platform,
+       pg.platform_game_id                                                       AS game_id,
+       COUNT(DISTINCT gac.achievement_api_name)                                  AS total_achievements,
+       COALESCE(SUM(CASE WHEN uga.unlocked_at IS NOT NULL THEN 1 ELSE 0 END), 0) AS unlocked_achievements
+FROM user_game_library AS ugl
+         JOIN platform_games AS pg
+              ON pg.id = ugl.platform_game_id
+         LEFT JOIN game_achievement_catalog AS gac
+                   ON gac.platform = pg.platform
+                       AND gac.platform_game_id = pg.platform_game_id
+         LEFT JOIN user_game_achievements AS uga
+                   ON uga.identity_id = ugl.identity_id
+                       AND uga.platform_game_id = ugl.platform_game_id
+                       AND uga.achievement_api_name = gac.achievement_api_name
+GROUP BY ugl.identity_id, pg.platform, pg.platform_game_id;

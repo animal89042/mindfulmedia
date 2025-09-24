@@ -1,4 +1,42 @@
-import {pool, getOrCreateIdentity} from '../db/database.js';
+import { pool, getOrCreateIdentity } from '../db/database.js';
+import { createHash } from 'crypto';
+
+/* ----- computeETag ----- */
+function computeETag(payload) {
+    const json = typeof payload === 'string' ? payload : JSON.stringify(payload);
+    return 'W/"' + createHash('sha1').update(json).digest('hex') + '"';
+}
+
+/* ----- maybe304 ----- */
+function maybe304(req, res, etag) {
+    if (req.headers['if-none-match'] === etag) {
+        res.status(304).end();
+        return true;
+    }
+    return false;
+}
+
+/* ----- withCacheHeaders ----- */
+export function withCacheHeaders(getPayload, { maxAge = 300, staleWhileRevalidate = 60 } = {}) {
+    return async (req, res, next) => {
+        try {
+            const payload = await getPayload(req, res);
+            const etag = computeETag(payload);
+
+            if (maybe304(req, res, etag)) return;
+
+            res.set('ETag', etag);
+            res.set(
+                'Cache-Control',
+                `public, max-age=${maxAge}, stale-while-revalidate=${staleWhileRevalidate}`
+            );
+
+            res.json(payload);
+        } catch (err) {
+            next(err);
+        }
+    };
+}
 
 export async function requireIdentity(req, res, next) {
     try {
