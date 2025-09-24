@@ -14,7 +14,6 @@ function zapJournalCaches(identity_id, appid) {
     cache.del(`games:${identity_id}:v1`);
 }
 
-// Helper: map appid -> platform_games.id (Steam)
 async function getPlatformGameRowId(appid) {
     const [[pg]] = await pool.query(
         `SELECT id FROM platform_games
@@ -34,54 +33,50 @@ router .get("/journals", requireIdentity, async (req, res) => {
     });
 
     const identityId = req.identity_id;
-    const { appid } = req.query;
+    const {appid} = req.query;
 
     try {
-        let rows;
-
         if (appid) {
             // Only this game's entries
             const pgRowId = await getPlatformGameRowId(appid);
-            if (!pgRowId) return res.json([]); // unknown game => no rows
+            if (!pgRowId) return res.json([]);
 
             [rows] = await pool.query(
                 `SELECT j.id,
-                    pg.platform_game_id AS appid,
-                    COALESCE(pg.name, '') AS game_title,
-                    j.entry,
-                    j.title AS journal_title,
-                    j.created_at,
-                    j.edited_at
-                FROM user_game_journals j
-                JOIN platform_games pg ON pg.id = j.platform_game_id
-                WHERE j.identity_id = ?
-                AND j.platform_game_id = ?
-                ORDER BY j.created_at DESC
-                `, [identityId, pgRowId]
+                        pg.platform_game_id   AS appid,
+                        COALESCE(pg.name, '') AS game_title,
+                        j.entry,
+                        j.title               AS journal_title,
+                        j.created_at,
+                        j.edited_at
+                 FROM user_game_journals j
+                          JOIN platform_games pg ON pg.id = j.platform_game_id
+                 WHERE j.identity_id = ?
+                   AND j.platform_game_id = ?
+                 ORDER BY j.created_at DESC`,
+                [identityId, pgRowId]
             );
-        } else {
-            // All entries for this identity (Steam only; easy to generalize later)
-            [rows] = await pool.query(
-                `SELECT j.id,
-                    pg.platform_game_id AS appid,
-                    COALESCE(pg.name, '') AS game_title,
-                    j.entry,
-                    j.title AS journal_title,
-                    j.created_at,
-                    j.edited_at
-                FROM user_game_journals j
-                JOIN platform_games pg ON pg.id = j.platform_game_id
-                WHERE j.identity_id = ?
-                AND pg.platform = 'steam'
-                ORDER BY j.created_at DESC
-                `, [identityId]
-            );
+            return res.json(rows);
         }
-
-        res.json(rows);
+        const [rows] = await pool.query(
+            `SELECT j.id,
+                    pg.platform_game_id   AS appid,
+                    COALESCE(pg.name, '') AS game_title,
+                    j.entry,
+                    j.title               AS journal_title,
+                    j.created_at,
+                    j.edited_at
+             FROM user_game_journals j
+                      JOIN platform_games pg ON pg.id = j.platform_game_id
+             WHERE j.identity_id = ?
+               AND pg.platform = 'steam'
+             ORDER BY j.created_at DESC`,
+            [identityId]
+        );
+        return res.json(rows);
     } catch (err) {
         console.error("Error fetching journal entries:", err);
-        res.status(500).json({ error: "Failed to fetch journal entries" });
+        return res.status(500).json({error: "Failed to fetch journal entries"});
     }
 });
 
@@ -108,39 +103,31 @@ router.post("/journals", requireIdentity, async (req, res) => {
         }
 
         const [ins] = await pool.query(
-            `
-            INSERT INTO user_game_journals (identity_id, platform_game_id, title, entry)
-            VALUES (?, ?, ?, ?)
-            `, [identityId, pgRowId, title ?? "", entry]
+            `INSERT INTO user_game_journals (identity_id, platform_game_id, title, entry)
+             VALUES (?, ?, ?, ?)`,
+            [identityId, pgRowId, title ?? "", entry]
         );
+
+        zapJournalCaches(identityId, appid);
 
         const [[newRow]] = await pool.query(
             `SELECT j.id,
-                    pg.platform_game_id AS appid,
+                    pg.platform_game_id   AS appid,
                     COALESCE(pg.name, '') AS game_title,
                     j.entry,
-                    j.title AS journal_title,
+                    j.title               AS journal_title,
                     j.created_at,
                     j.edited_at
-                FROM user_game_journals j
-                JOIN platform_games pg ON pg.id = j.platform_game_id
-                WHERE j.id = ?`,
+             FROM user_game_journals j
+                      JOIN platform_games pg ON pg.id = j.platform_game_id
+             WHERE j.id = ?`,
             [ins.insertId]
         );
-
-        res.json(newRow);
+        return res.json(newRow);
     } catch (err) {
         console.error("Error saving journal entry:", err);
-        res.status(500).json({ error: "Failed to save journal entry" });
+        return res.status(500).json({ error: "Failed to save journal entry" });
     }
-});
-
-router.post("/journals", requireIdentity, async (req, res) => {
-    const identity_id = req.identity_id;
-    const created = await createJournal(identity_id, req.body);
-    const appid = String(req.body.appid ?? created?.appid ?? created?.game_id ?? "");
-    zapJournalCaches(identity_id, appid);
-    res.json(created);
 });
 
 //  ─── Journal: Delete a entry ────────────────────────────────────
@@ -157,28 +144,23 @@ router.delete("/journals/:id", requireIdentity, async (req, res) => {
     let conn;
     try {
         const [[own]] = await pool.query(
-            `SELECT 1
-             FROM user_game_journals
-             WHERE id = ? AND identity_id = ?
+            `SELECT j.platform_game_id, pg.platform_game_id AS appid
+             FROM user_game_journals j
+                      JOIN platform_games pg ON pg.id = j.platform_game_id
+             WHERE j.id = ?
+               AND j.identity_id = ?
              LIMIT 1`,
             [entryId, identityId]
         );
         if (!own) return res.status(404).json({ error: "Entry not found or access denied" });
 
         await pool.query(`DELETE FROM user_game_journals WHERE id = ?`, [entryId]);
-        res.json({ success: true });
+
+        return res.json({ success: true });
     } catch (err) {
         console.error("Error deleting journal entry:", err);
-        res.status(500).json({ error: "Failed to delete journal entry" });
+        return res.status(500).json({ error: "Failed to delete journal entry" });
     }
-});
-
-router.delete("/journals/:id", requireIdentity, async (req, res) => {
-    const identity_id = req.identity_id;
-    const deleted = await deleteJournal(identity_id, req.params.id);
-    const appid = String(deleted?.appid ?? deleted?.game_id ?? "");
-    zapJournalCaches(identity_id, appid);
-    res.json({ ok: true });
 });
 
 //  ─── Journal: Update a entry ────────────────────────────────────
@@ -193,24 +175,26 @@ router.put("/journals/:id", requireIdentity, async (req, res) => {
     const entryId = Number(req.params.id);
     const { entry, title } = req.body;
 
-    if (!entry) {
-        return res.status(400).json({error: "Entry content is required"});
-    }
+    if (!entry) return res.status(400).json({error: "Entry content is required"});
 
     try {
         const [[own]] = await pool.query(
-            `SELECT 1
-            FROM user_game_journals
-            WHERE id = ? AND identity_id = ?
-            LIMIT 1`,
+            `SELECT j.platform_game_id, pg.platform_game_id AS appid
+             FROM user_game_journals j
+                      JOIN platform_games pg ON pg.id = j.platform_game_id
+             WHERE j.id = ?
+               AND j.identity_id = ?
+             LIMIT 1`,
             [entryId, identityId]
         );
         if (!own) return res.status(404).json({ error: "Entry not found or access denied" });
 
         await pool.query(
             `UPDATE user_game_journals
-            SET entry = ?, title = ?, edited_at = NOW()
-            WHERE id = ?`,
+             SET entry = ?,
+                 title = ?,
+                 edited_at = NOW()
+             WHERE id = ?`,
             [entry, title || "", entryId]
         );
 
@@ -228,20 +212,11 @@ router.put("/journals/:id", requireIdentity, async (req, res) => {
             [entryId]
         );
 
-        res.json(row);
+        return res.json(row);
     } catch (err) {
         console.error("Error updating journal entry:", err);
-        res.status(500).json({ error: "Failed to update journal entry" });
+        return res.status(500).json({ error: "Failed to update journal entry" });
     }
 });
-
-router.put("/journals/:id", requireIdentity, async (req, res) => {
-    const identity_id = req.identity_id;
-    const updated = await updateJournal(identity_id, req.params.id, req.body);
-    const appid = String(req.body.appid ?? updated?.appid ?? updated?.game_id ?? "");
-    zapJournalCaches(identity_id, appid);
-    res.json(updated);
-});
-
 
 export default router;

@@ -13,8 +13,16 @@ export default function Navbar({ user }) {
             <div className="w-full px-4 sm:px-6 lg:px-10">
                 {/* Grid keeps brand centered without hacks */}
                 <div className="grid grid-cols-3 items-center h-14">
-                    {/* Left spacer (you can add a nav later) */}
-                    <div className="flex items-center gap-3"></div>
+
+                    {/* Left side: */}
+                    <div className="flex items-center gap-3">
+                        <Link
+                            to="/leaderboards/top-time"
+                            className="text-lg font-bold tracking-wide text-blue-400 hover:text-blue-300 transition"
+                        >
+                            Leaderboard
+                        </Link>
+                    </div>
 
                     {/* Centered brand */}
                     <Link to="/" className="justify-self-center group inline-flex items-center gap-2 select-none">

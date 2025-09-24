@@ -1,7 +1,7 @@
 // server/cache.js
 import crypto from "crypto";
 
-/** TTL cache with stale-while-revalidate and in-flight de-dupe */
+/* TTL cache */
 class Cache {
     constructor({ max = 5000 } = {}) {
         this.store = new Map();     // key -> { val, exp, staleExp }

@@ -1,60 +1,51 @@
 import { Router } from "express";
-import { requireIdentity } from "../middleware/AuthMiddleware.js";
+import { requireIdentity, withCacheHeaders } from "../middleware/AuthMiddleware.js";
 import { pool } from "../db/database.js";
 
 const router = Router();
 
-// Utility to sort a pair so (min,max) is consistent
 const sortPair = (a, b) => (a <= b ? [a, b] : [b, a]);
+
+async function getFriendship(a, b) {
+    const [rows] = await pool.query(
+        "SELECT * FROM friendships WHERE user_a_id=? AND user_b_id=? LIMIT 1",
+        [a, b]
+    );
+    return rows[0] || null;
+}
+
+async function upsertFriendship(a, b, fields) {
+    const keys = Object.keys(fields);
+    const cols = ["user_a_id", "user_b_id", ...keys];
+    const vals = [a, b, ...keys.map((k) => fields[k])];
+    await pool.query(
+        `INSERT INTO friendships (${cols.join(",")})
+     VALUES (${cols.map(() => "?").join(",")})
+     ON DUPLICATE KEY UPDATE ${keys.map((k) => `${k}=VALUES(${k})`).join(",")}`,
+        vals
+    );
+}
 
 // Send friend request
 router.post("/request/:targetUserId", requireIdentity, async (req, res) => {
     try {
         const me = Number(req.user_id);
         const target = Number(req.params.targetUserId);
-
-        if (!target || target === me) {
-            return res.status(400).json({ error: "Invalid target user." });
-        }
+        if (!target || target === me) return res.status(400).json({ error: "Invalid target user." });
 
         const [a, b] = sortPair(me, target);
+        const existing = await getFriendship(a, b);
 
-        // Check existing relationship
-        const [rows] = await pool.query(
-            "SELECT * FROM friendships WHERE user_a_id=? AND user_b_id=?",
-            [a, b]
-        );
-
-        if (rows.length) {
-            const f = rows[0];
-            if (f.status === "accepted") {
-                return res.status(409).json({ error: "Already friends." });
-            }
-            if (f.status === "pending") {
-                return res.status(409).json({ error: "Request already pending." });
-            }
-            if (f.status === "blocked") {
-                return res.status(403).json({ error: "Relationship is blocked." });
-            }
-            // If declined, allow re-request by updating the row
-            await pool.query(
-                `UPDATE friendships
-         SET status='pending', requested_by=?, responded_by=NULL, responded_at=NULL
-         WHERE id=?`,
-                [me, f.id]
-            );
-            return res.json({ ok: true, status: "pending", requestId: f.id });
+        if (existing) {
+            if (existing.status === "accepted") return res.status(409).json({ error: "Already friends." });
+            if (existing.status === "pending") return res.status(409).json({ error: "Request already pending." });
+            if (existing.status === "blocked") return res.status(403).json({ error: "Relationship is blocked." });
+            await upsertFriendship(a, b, { status: "pending", requested_by: me, responded_by: null, responded_at: null });
+            return res.json({ ok: true, status: "pending", requestId: existing.id });
         }
 
-        // Insert new pending relationship
-        const [result] = await pool.query(
-            `INSERT INTO friendships
-       (user_a_id, user_b_id, status, requested_by)
-       VALUES (?,?, 'pending', ?)`,
-            [a, b, me]
-        );
-
-        return res.json({ ok: true, status: "pending", requestId: result.insertId });
+        await upsertFriendship(a, b, { status: "pending", requested_by: me });
+        return res.json({ ok: true, status: "pending" });
     } catch (err) {
         console.error("[friends/request]", err);
         return res.status(500).json({ error: "Internal error." });
@@ -68,29 +59,11 @@ router.post("/accept/:targetUserId", requireIdentity, async (req, res) => {
         const target = Number(req.params.targetUserId);
         const [a, b] = sortPair(me, target);
 
-        // Only accept if there's a pending where requested_by = target
-        const [rows] = await pool.query(
-            `SELECT * FROM friendships
-       WHERE user_a_id=? AND user_b_id=? AND status='pending'`,
-            [a, b]
-        );
+        const f = await getFriendship(a, b);
+        if (!f || f.status !== "pending") return res.status(404).json({ error: "No pending request found." });
+        if (f.requested_by === me) return res.status(400).json({ error: "You sent this request; wait for them to accept." });
 
-        if (!rows.length) {
-            return res.status(404).json({ error: "No pending request found." });
-        }
-
-        const f = rows[0];
-        if (f.requested_by === me) {
-            return res.status(400).json({ error: "You sent this request; wait for them to accept." });
-        }
-
-        await pool.query(
-            `UPDATE friendships
-       SET status='accepted', responded_by=?, responded_at=CURRENT_TIMESTAMP
-       WHERE id=?`,
-            [me, f.id]
-        );
-
+        await upsertFriendship(a, b, { status: "accepted", responded_by: me, responded_at: new Date() });
         return res.json({ ok: true, status: "accepted" });
     } catch (err) {
         console.error("[friends/accept]", err);
@@ -105,28 +78,11 @@ router.post("/decline/:targetUserId", requireIdentity, async (req, res) => {
         const target = Number(req.params.targetUserId);
         const [a, b] = sortPair(me, target);
 
-        const [rows] = await pool.query(
-            `SELECT * FROM friendships
-       WHERE user_a_id=? AND user_b_id=? AND status='pending'`,
-            [a, b]
-        );
+        const f = await getFriendship(a, b);
+        if (!f || f.status !== "pending") return res.status(404).json({ error: "No pending request found." });
+        if (f.requested_by === me) return res.status(400).json({ error: "You sent this request; you cannot decline it." });
 
-        if (!rows.length) {
-            return res.status(404).json({ error: "No pending request found." });
-        }
-
-        const f = rows[0];
-        if (f.requested_by === me) {
-            return res.status(400).json({ error: "You sent this request; you cannot decline it." });
-        }
-
-        await pool.query(
-            `UPDATE friendships
-       SET status='declined', responded_by=?, responded_at=CURRENT_TIMESTAMP
-       WHERE id=?`,
-            [me, f.id]
-        );
-
+        await upsertFriendship(a, b, { status: "declined", responded_by: me, responded_at: new Date() });
         return res.json({ ok: true, status: "declined" });
     } catch (err) {
         console.error("[friends/decline]", err);
@@ -141,27 +97,15 @@ router.delete("/:targetUserId", requireIdentity, async (req, res) => {
         const target = Number(req.params.targetUserId);
         const [a, b] = sortPair(me, target);
 
-        const [rows] = await pool.query(
-            "SELECT * FROM friendships WHERE user_a_id=? AND user_b_id=?",
-            [a, b]
-        );
-        if (!rows.length) {
-            return res.status(404).json({ error: "No relationship found." });
-        }
+        const f = await getFriendship(a, b);
+        if (!f) return res.status(404).json({ error: "No relationship found." });
 
-        const f = rows[0];
-
-        // Allow delete if accepted OR (pending & I am the requester) OR declined
         const canDelete =
             f.status === "accepted" ||
             f.status === "declined" ||
             (f.status === "pending" && f.requested_by === me);
 
-        if (!canDelete) {
-            return res
-                .status(403)
-                .json({ error: "You cannot cancel this request (you weren’t the requester)." });
-        }
+        if (!canDelete) return res.status(403).json({ error: "You cannot cancel this request (you weren’t the requester)." });
 
         await pool.query("DELETE FROM friendships WHERE id=?", [f.id]);
         return res.json({ ok: true, removed: true });
@@ -178,28 +122,13 @@ router.post("/block/:targetUserId", requireIdentity, async (req, res) => {
         const target = Number(req.params.targetUserId);
         const [a, b] = sortPair(me, target);
 
-        const [rows] = await pool.query(
-            "SELECT * FROM friendships WHERE user_a_id=? AND user_b_id=?",
-            [a, b]
-        );
-
-        if (!rows.length) {
-            const [result] = await pool.query(
-                `INSERT INTO friendships
-         (user_a_id,user_b_id,status,requested_by,blocked_by)
-         VALUES (?,?, 'blocked', ?, ?)`,
-                [a, b, me, me]
-            );
-            return res.json({ ok: true, status: "blocked", id: result.insertId });
-        } else {
-            await pool.query(
-                `UPDATE friendships
-         SET status='blocked', blocked_by=?, responded_by=NULL, responded_at=NULL
-         WHERE id=?`,
-                [me, rows[0].id]
-            );
+        const f = await getFriendship(a, b);
+        if (!f) {
+            await upsertFriendship(a, b, { status: "blocked", requested_by: me, blocked_by: me, responded_by: null, responded_at: null });
             return res.json({ ok: true, status: "blocked" });
         }
+        await upsertFriendship(a, b, { status: "blocked", blocked_by: me, responded_by: null, responded_at: null });
+        return res.json({ ok: true, status: "blocked" });
     } catch (err) {
         console.error("[friends/block]", err);
         return res.status(500).json({ error: "Internal error." });
@@ -209,61 +138,99 @@ router.post("/block/:targetUserId", requireIdentity, async (req, res) => {
 
 
 // List my friends
-router.get("/", requireIdentity, async (req, res) => {
-    try {
+router.get("/", requireIdentity, withCacheHeaders(async (req) => {
         const me = Number(req.user_id);
         const page = Math.max(1, Number(req.query.page) || 1);
         const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 25));
         const offset = (page - 1) * pageSize;
 
-        // Use the view for simplicity
         const [friends] = await pool.query(
             `SELECT friend_id
-       FROM v_user_friends
-       WHERE user_id=?
-       ORDER BY friend_id
-       LIMIT ? OFFSET ?`,
+         FROM v_user_friends
+        WHERE user_id=?
+        ORDER BY friend_id
+        LIMIT ? OFFSET ?`,
             [me, pageSize, offset]
         );
+        return { ok: true, page, pageSize, friends };
+    }, { maxAge: 30, staleWhileRevalidate: 300 })
+);
 
-        // If you want richer friend profiles, join to your users table here.
-        return res.json({ ok: true, page, pageSize, friends });
-    } catch (err) {
-        console.error("[friends/list]", err);
-        return res.status(500).json({ error: "Internal error." });
-    }
-});
-
-// Pending requests
-router.get("/requests", requireIdentity, async (req, res) => {
-    try {
+// Incoming/Outgoing requests
+router.get("/requests", requireIdentity, withCacheHeaders(async (req) => {
         const me = Number(req.user_id);
 
         const [incoming] = await pool.query(
-            `SELECT
-         CASE WHEN user_a_id = ? THEN user_b_id ELSE user_a_id END AS from_user_id,
-         id, requested_by, requested_at
-       FROM friendships
-       WHERE status='pending' AND requested_by <> ?
-         AND (user_a_id=? OR user_b_id=?)`,
+            `SELECT CASE WHEN user_a_id = ? THEN user_b_id ELSE user_a_id END AS from_user_id,
+                    id,
+                    requested_by,
+                    requested_at
+             FROM friendships
+             WHERE status = 'pending'
+               AND requested_by <> ?
+               AND (user_a_id = ? OR user_b_id = ?)`,
             [me, me, me, me]
         );
 
         const [outgoing] = await pool.query(
-            `SELECT
-         CASE WHEN user_a_id = ? THEN user_b_id ELSE user_a_id END AS to_user_id,
-         id, requested_by, requested_at
-       FROM friendships
-       WHERE status='pending' AND requested_by = ?
-         AND (user_a_id=? OR user_b_id=?)`,
+            `SELECT CASE WHEN user_a_id = ? THEN user_b_id ELSE user_a_id END AS to_user_id,
+                    id,
+                    requested_by,
+                    requested_at
+             FROM friendships
+             WHERE status = 'pending'
+               AND requested_by = ?
+               AND (user_a_id = ? OR user_b_id = ?)`,
             [me, me, me, me]
         );
 
-        return res.json({ ok: true, incoming, outgoing });
-    } catch (err) {
-        console.error("[friends/requests]", err);
-        return res.status(500).json({ error: "Internal error." });
-    }
-});
+        return { ok: true, incoming, outgoing };
+    }, { maxAge: 15, staleWhileRevalidate: 120 })
+);
+
+// get friends that also own game
+router.get(
+    "/own/:platform/:gameId",
+    requireIdentity,
+    withCacheHeaders(async (req) => {
+        const viewerUserId = Number(req.user_id);
+        const platform = String(req.params.platform || "").toLowerCase();
+        const gameId = String(req.params.gameId || "").trim();
+
+        if (!viewerUserId) return { error: "Unauthorized" };
+        if (!["steam", "xbox", "playstation", "nintendo"].includes(platform)) return { error: "Invalid platform" };
+        if (!gameId) return { error: "Missing game id" };
+
+        const [rows] = await pool.query(
+            `WITH my_friends AS (SELECT friend_id
+                                 FROM v_user_friends
+                                 WHERE user_id = ?)
+             SELECT u.id                                 AS friendId,
+                    u.username                           AS name,
+                    u.avatar                             AS avatarUrl,
+                    COALESCE(SUM(v.playtime_minutes), 0) AS playtimeMinutes,
+                    MAX(v.last_played_at)                AS lastPlayed
+             FROM my_friends mf
+                      JOIN users u ON u.id = mf.friend_id
+                      JOIN user_identities ui ON ui.user_id = u.id
+                      JOIN v_identity_library v
+                           ON v.identity_id = ui.id
+                               AND v.platform = ?
+                               AND v.game_id = ?
+             GROUP BY u.id, u.username, u.avatar
+             HAVING playtimeMinutes > 0
+             ORDER BY playtimeMinutes DESC, name ASC`,
+            [viewerUserId, platform, gameId]
+        );
+
+        return rows.map((r) => ({
+            id: r.friendId,
+            name: r.name || "Friend",
+            avatarUrl: r.avatarUrl || null,
+            playtimeMinutes: Number(r.playtimeMinutes || 0),
+            lastPlayed: r.lastPlayed || null,
+        }));
+    }, { maxAge: 30, staleWhileRevalidate: 300 })
+);
 
 export default router;

@@ -8,17 +8,20 @@ const routes = {
 
     // User
     me: '/me',
+    verifyMe: '/me/username',
     profile: '/profile',
     profileByUsername: (u) => `/users/${encodeURIComponent(u)}/profile`,
 
     // Games
     game: (appid) => `/game/${appid}`,
-    games: '/games',
     gameStats: (appid) => `/game/${appid}/stats`,
+    gameAchievements: (appid) => `/game/${appid}/achievements`,
+    gameFriends: (platform, gameId) => `/friends/own/${platform}/${gameId}`,
+    gameLibrary: '/games',
 
     // Journals
     journals: '/journals',
-    journalsByApp: (appid) => `/journals?appid=${appid}`,
+    journalsByApp: (appid) => `/journals/${appid}`,
     journalById: (id) => `/journals/${id}`,
 
     // Friends
@@ -30,8 +33,9 @@ const routes = {
     friendRemove: (id) => `/friends/${id}`,
     friendBlock: (id) => `/friends/block/${id}`,
 
-    // Misc
-    playerSummary: '/playersummary',
+    leaderboardsTT: '/leaderboards/top-time',
+
+    // Test
     test: '/test',
 };
 
