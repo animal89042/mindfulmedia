@@ -72,7 +72,6 @@ function PageEdit({ entry, look, onChange }) {
 export default function JournalsTab({ userId, compact = false, limit = 0 }) {
     const [entries, setEntries] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
     const [index, setIndex] = useState(0);
     const [edit, setEdit] = useState(false);
     const [search, setSearch] = useState("");
@@ -83,7 +82,7 @@ export default function JournalsTab({ userId, compact = false, limit = 0 }) {
     const pageSize = compact ? 8 : 100;
 
     // Fetch entries (keeps your existing API contract)
-    const refresh = async () => {
+    const refresh = React.useCallback(async () => {
         setLoading(true);
         try {
             const params = { page: 1, pageSize };
@@ -94,11 +93,11 @@ export default function JournalsTab({ userId, compact = false, limit = 0 }) {
             setEntries(limit ? arr.slice(0, limit) : arr);
             setIndex(0);
         } catch (e) {
-            setError(e?.message || "Failed to load");
             setEntries([]);
         } finally { setLoading(false); }
-    };
-    useEffect(() => { refresh(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [userId]);
+    }, [userId, pageSize, limit]);
+
+    useEffect(() => { refresh(); }, [refresh, userId]);
 
     // Filter by search
     const filtered = useMemo(() => {
@@ -237,7 +236,7 @@ export default function JournalsTab({ userId, compact = false, limit = 0 }) {
             {/* ----- Book container ----- */}
             <div
                 ref={flipRef}
-                className={`book-3d relative mx-auto w-full ${compact ? "max-w-3xl" : "max-w-4xl"} aspect-[16/9] rounded-3xl border border-white/10 bg-black/40 backdrop-blur shadow-[0_0_40px_rgba(0,0,0,.6)] overflow-hidden`}
+                className={`book-3d relative mx-auto w-full ${compact ? "max-w-3xl" : "max-w-4xl"} aspect-[16/9] rounded-3xl border border-white/10 bg-black/40 backdrop-blur shadow-[0_0_40px_rgba(0,0,0,0.2)]`}
             >
                 {/* Two-page layout */}
                 <div className="absolute inset-0 grid grid-cols-2">
