@@ -19,16 +19,6 @@ export default function ProfilePage({ user: userProp, setUser }) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
-    const pickUser = (resOrObj) => {
-        const d = resOrObj?.data ?? resOrObj;
-        const u = d?.user ?? d?.me ?? d;
-        if (!u || typeof u !== 'object') return null;
-        const id = u.id ?? u.user_id ?? u.identity_id ?? u.steam_id ?? null;
-        const displayName = u.displayName ?? u.display_name ?? u.name ?? u.username ?? null;
-        const usernameNorm = u.username ?? (u.name && !u.display_name ? u.name : null);
-        return { ...u, id, displayName, username: usernameNorm ?? u.username };
-    };
-
     const isSelf = useMemo(() => {
         if (!username) return true;
         if (!viewer || !profileUser) return false;
