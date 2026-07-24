@@ -72,6 +72,7 @@ function PageEdit({ entry, look, onChange }) {
 export default function JournalsTab({ userId, compact = false, limit = 0 }) {
     const [entries, setEntries] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const [index, setIndex] = useState(0);
     const [edit, setEdit] = useState(false);
     const [search, setSearch] = useState("");
@@ -82,7 +83,7 @@ export default function JournalsTab({ userId, compact = false, limit = 0 }) {
     const pageSize = compact ? 8 : 100;
 
     // Fetch entries (keeps your existing API contract)
-    const refresh = React.useCallback(async () => {
+    const refresh = async () => {
         setLoading(true);
         try {
             const params = { page: 1, pageSize };
@@ -93,11 +94,11 @@ export default function JournalsTab({ userId, compact = false, limit = 0 }) {
             setEntries(limit ? arr.slice(0, limit) : arr);
             setIndex(0);
         } catch (e) {
+            setError(e?.message || "Failed to load");
             setEntries([]);
         } finally { setLoading(false); }
-    }, [userId, pageSize, limit]);
-
-    useEffect(() => { refresh(); }, [refresh, userId]);
+    };
+    useEffect(() => { refresh(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [userId]);
 
     // Filter by search
     const filtered = useMemo(() => {
